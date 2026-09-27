@@ -1,0 +1,59 @@
+name: Validate workflows
+
+on:
+  push:
+    paths:
+      - "workflows/**"
+      - ".github/workflows/validate-workflows.yml"
+  pull_request:
+    paths:
+      - "workflows/**"
+      - ".github/workflows/validate-workflows.yml"
+
+jobs:
+  validate-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Dependency-free: uses only Node.js (preinstalled on ubuntu-latest).
+      - name: Validate workflow JSON files
+        run: |
+          node -e '
+            const fs = require("fs");
+            const dir = "workflows";
+            if (!fs.existsSync(dir)) {
+              console.log("workflows/ directory not found; nothing to validate.");
+              process.exit(0);
+            }
+            const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+            let invalid = false;
+            for (const f of files) {
+              const path = dir + "/" + f;
+              const raw = fs.readFileSync(path, "utf8");
+              // Windows editors may prepend a UTF-8 BOM, which JSON.parse rejects.
+              if (raw.charCodeAt(0) === 0xfeff) {
+                console.error("Invalid JSON in workflows/" + f + ": file starts with a UTF-8 BOM. Re-save as UTF-8 without BOM.");
+                invalid = true;
+                continue;
+              }
+              try {
+                JSON.parse(raw);
+                console.log("OK " + f);
+              } catch (e) {
+                console.error("Invalid JSON in workflows/" + f + ": " + e.message);
+                invalid = true;
+              }
+            }
+            if (invalid) process.exit(1);
+          '
+
+      - name: Warn when workflows/ has no JSON files yet
+        run: |
+          count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::workflows/ contains no JSON files yet. Export them from n8n as US-XX-<slug>.json."
+          else
+            echo "Found $count workflow JSON file(s)."
+          fi

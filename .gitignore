@@ -1,0 +1,38 @@
+# Environment files — NEVER commit secrets
+.env
+.env.*
+# Keep the template tracked
+!.env.example
+
+# Dependencies
+node_modules/
+
+# n8n local data (durable volume content)
+n8n_data/
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Credentials / key material
+credentials.json
+service-account*.json
+*.pem
+*.key
+
+# Secrets directory: ignore everything except the tracked placeholder
+secrets/*
+!secrets/.gitkeep
+
+# PWA build output
+pwa/dist/
+
+# IDE settings
+.idea/
+.vscode/
+
+# Agent tooling state (generated, contains absolute machine paths)
+.atl/

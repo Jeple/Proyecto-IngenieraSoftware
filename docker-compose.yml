@@ -1,0 +1,41 @@
+# n8n orchestrator + Cloudflare Tunnel (RNF-03, RNF-05: free tier, $0 USD).
+#
+# Local-only mode (no tunnel): run `docker compose up n8n` and open
+# http://localhost:5678 — the n8n port is bound to 127.0.0.1 on purpose.
+
+services:
+  n8n:
+    # Pin an exact version (e.g. docker.n8n.io/n8nio/n8n:1.x.y) before Sprint 1.
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      # Localhost only: the Cloudflare Tunnel reaches n8n over the compose network.
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # Service-account JSON lives in ./secrets on the host (see
+      # GOOGLE_SERVICE_ACCOUNT_FILE in .env). n8n reads it from
+      # /home/node/.n8n/secrets/<file>. Never commit that JSON.
+      - ./secrets:/home/node/.n8n/secrets
+    environment:
+      - N8N_PORT=5678
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://${N8N_HOST}/
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=America/Santiago
+      - TZ=America/Santiago
+      - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    depends_on:
+      - n8n
+    # No ports: cloudflared dials the tunnel outbound and proxies to n8n.
+
+volumes:
+  n8n_data:
