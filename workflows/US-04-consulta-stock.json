@@ -1,0 +1,329 @@
+{
+  "name": "US-04 Consulta de Stock (Fuzzy Search)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-verify",
+        "responseMode": "responseNode",
+        "webhookId": "us04-webhook-verify",
+        "options": {}
+      },
+      "id": "nwv01",
+      "name": "webhook_verify",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "us04-webhook-verify"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us04-cond-verify",
+              "leftValue": "={{ $json.body[\"hub.verify_token\"] }}",
+              "rightValue": "={{ $env.WHATSAPP_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "nif01",
+      "name": "if_verify_token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body[\"hub.challenge\"] }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "nrp01",
+      "name": "respond_challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Verification token mismatch: hub.verify_token does not match WHATSAPP_VERIFY_TOKEN.",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "nrf01",
+      "name": "respond_forbidden",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-messages",
+        "responseMode": "onReceived",
+        "webhookId": "us04-webhook-messages",
+        "options": {}
+      },
+      "id": "nwm01",
+      "name": "webhook_messages",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "us04-webhook-messages",
+      "notes": "responseMode onReceived returns an immediate 200 to Meta before any processing, protecting RNF-01 (reply latency < 2.5 s): parsing, the two Sheets reads and fuzzy matching all run after the ack."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * Extract the incoming WhatsApp text message from the webhook payload.\n * Outputs ONE item { phone, text, received_at } or an EMPTY array when there is\n * no text message. Never throws: malformed payloads are dropped silently.\n */\nconst out = [];\ntry {\n  const items = $input.all();\n  for (let i = 0; i < items.length; i++) {\n    const item = items[i];\n    const json = item && item.json ? item.json : item;\n    const body = json && json.body ? json.body : json;\n    if (!body || !Array.isArray(body.entry)) continue;\n    for (let e = 0; e < body.entry.length; e++) {\n      const entry = body.entry[e] || {};\n      const changes = Array.isArray(entry.changes) ? entry.changes : [];\n      for (let c = 0; c < changes.length; c++) {\n        const value = (changes[c] && changes[c].value) || {};\n        const messages = Array.isArray(value.messages) ? value.messages : [];\n        for (let m = 0; m < messages.length; m++) {\n          const msg = messages[m];\n          if (!msg || msg.type !== 'text') continue;\n          const textBody =\n            msg.text && typeof msg.text.body === 'string' ? msg.text.body.trim() : '';\n          if (!textBody) continue;\n          out.push({\n            json: {\n              phone: msg.from ? String(msg.from) : '',\n              text: textBody,\n              received_at: msg.timestamp\n                ? new Date(Number(msg.timestamp) * 1000).toISOString()\n                : new Date().toISOString()\n            }\n          });\n          return out; // ONE item per webhook payload\n        }\n      }\n    }\n  }\n} catch (err) {\n  return []; // malformed payload → drop, never throw\n}\nreturn out;\n"
+      },
+      "id": "npi01",
+      "name": "parse_incoming",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "catalogo"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:I"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "nrc01",
+      "name": "read_catalogo",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:E"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "nri01",
+      "name": "read_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-04 — Consulta de stock (fuzzy, LLM-free).\n *\n * SCORE = 0.60 * tokenSimilarity + 0.30 * coverage + 0.10 * doseBonus\n *   - tokenSimilarity: mean over query tokens of the best similarity found in the\n *     pool of tokens from nombre_comercial + principio_activo + dosis.\n *     Shortcuts on the candidate token: exact = 1.0, starts with query = 0.92,\n *     contains query = 0.85, otherwise levenshtein similarity.\n *   - coverage: fraction of query tokens whose best similarity is >= COVERAGE_TOKEN_MIN.\n *   - doseBonus: 1 (row dose matches the query dose token), 0.5 (query has no dose\n *     token), 0 (query dose missing in the row); a missing dose also multiplies the\n *     final score by DOSE_PENALTY (0.6).\n *   - Dose tokens are excluded from tokenSimilarity/coverage: the dose axis is\n *     scored only through doseBonus/penalty, because sheet doses are spaced\n *     (\"75 mg\") while users type \"75mg\" and a literal token match would\n *     double-penalize a correct query.\n *   - MATCH_THRESHOLD = 0.72 decides a match; MAX_SUGGESTIONS = 3 caps the\n *     bioequivalent fallback list (RF-02).\n *\n * DELIBERATELY LLM-FREE: no Gemini/LLM node exists in this workflow, so RF-01\n * grounding (never invent names, prices or stock) is structural — every figure\n * in the reply is read from the sheets and recomputed here.\n *\n * LATENCY NOTE (risk R-01): the two Google Sheets reads (read_catalogo +\n * read_inventario) dominate end-to-end latency; caching the catalog in the\n * workflow is the planned optimization.\n */\n\nconst COVERAGE_TOKEN_MIN = 0.799;\nconst MATCH_THRESHOLD = 0.72;\nconst MAX_SUGGESTIONS = 3;\nconst DOSE_PENALTY = 0.6;\n\nfunction normalize(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(s) {\n  const n = normalize(s);\n  return n ? n.split(' ') : [];\n}\n\nfunction levenshteinDistance(a, b) {\n  a = String(a === null || a === undefined ? '' : a);\n  b = String(b === null || b === undefined ? '' : b);\n  if (a === b) return 0;\n  if (a.length === 0) return b.length;\n  if (b.length === 0) return a.length;\n  let prev = new Array(b.length + 1);\n  let curr = new Array(b.length + 1);\n  for (let j = 0; j <= b.length; j++) prev[j] = j;\n  for (let i = 1; i <= a.length; i++) {\n    curr[0] = i;\n    for (let j = 1; j <= b.length; j++) {\n      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;\n      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);\n    }\n    const tmp = prev;\n    prev = curr;\n    curr = tmp;\n  }\n  return prev[b.length];\n}\n\nfunction levenshteinSimilarity(a, b) {\n  const left = String(a === null || a === undefined ? '' : a);\n  const right = String(b === null || b === undefined ? '' : b);\n  if (left.length === 0 && right.length === 0) return 1;\n  if (left.length === 0 || right.length === 0) return 0;\n  const maxLen = Math.max(left.length, right.length);\n  return 1 - levenshteinDistance(left, right) / maxLen;\n}\n\nfunction isDoseToken(token) {\n  return /^\\d+(\\.\\d+)?$/.test(token) || /^\\d+(\\.\\d+)?(mg|ml|g|ui|mcg)$/.test(token);\n}\n\nfunction parseDoseToken(token) {\n  const m = /^(\\d+(?:\\.\\d+)?)(mg|ml|g|ui|mcg)?$/.exec(String(token));\n  return m ? { value: m[1], unit: m[2] || '' } : null;\n}\n\n/** Row dose matches the query dose token when the normalized dose tokens contain\n *  the token value (and the unit, when the token carries one), e.g. dose\n *  \"75 mg\" contains token \"75\" and token \"75mg\". */\nfunction rowDoseMatches(rowDose, doseToken) {\n  const parsed = parseDoseToken(doseToken);\n  if (!parsed) return false;\n  const doseTokens = tokenize(rowDose);\n  if (doseTokens.indexOf(parsed.value) === -1) return false;\n  if (!parsed.unit) return true;\n  return doseTokens.indexOf(parsed.unit) !== -1;\n}\n\n/** Field-match shortcuts: exact = 1.0, starts with query = 0.92, contains = 0.85. */\nfunction tokenSimilarity(queryToken, candidateToken) {\n  if (queryToken === candidateToken) return 1;\n  if (queryToken.length > 0 && candidateToken.indexOf(queryToken) === 0) return 0.92;\n  if (queryToken.length > 0 && candidateToken.indexOf(queryToken) !== -1) return 0.85;\n  return levenshteinSimilarity(queryToken, candidateToken);\n}\n\nfunction rowJson(item) {\n  return item && item.json ? item.json : item;\n}\n\nfunction tokenPool(row) {\n  const fields = [row.nombre_comercial, row.principio_activo, row.dosis]\n    .map(normalize)\n    .join(' ')\n    .trim();\n  return fields ? fields.split(' ') : [];\n}\n\nfunction isActiveRow(row) {\n  return !!row && normalize(row.activo) === 'si';\n}\n\n/** Final score (0..1) of one catalog row for the given tokenized query. */\nfunction scoreCandidate(queryTokens, queryDoseToken, row) {\n  const pool = tokenPool(row);\n  let sum = 0;\n  let covered = 0;\n  let scored = 0;\n  for (let i = 0; i < queryTokens.length; i++) {\n    const qt = queryTokens[i];\n    if (isDoseToken(qt)) continue; // dose axis is scored via doseBonus/penalty only\n    scored++;\n    let best = 0;\n    for (let j = 0; j < pool.length; j++) {\n      const s = tokenSimilarity(qt, pool[j]);\n      if (s > best) best = s;\n    }\n    sum += best;\n    if (best >= COVERAGE_TOKEN_MIN) covered++;\n  }\n  const ts = scored ? sum / scored : 0;\n  const coverage = scored ? covered / scored : 0;\n  const doseMatched = queryDoseToken ? rowDoseMatches(row.dosis, queryDoseToken) : null;\n  const doseBonus = queryDoseToken ? (doseMatched ? 1 : 0) : 0.5;\n  let final = 0.60 * ts + 0.30 * coverage + 0.10 * doseBonus;\n  if (queryDoseToken && !doseMatched) final *= DOSE_PENALTY;\n  return final;\n}\n\nfunction inventoryMap(inventoryRows) {\n  const map = new Map();\n  const rows = inventoryRows || [];\n  for (let i = 0; i < rows.length; i++) {\n    const r = rowJson(rows[i]);\n    if (r && r.medicamento_id !== undefined && r.medicamento_id !== null) {\n      map.set(normalize(r.medicamento_id), r);\n    }\n  }\n  return map;\n}\n\n/** stock_neto is ALWAYS recomputed here (stock_real - stock_reservado);\n *  the sheet's stock_neto formula column is never trusted. */\nfunction stockNeto(row, inventoryById) {\n  const inv = inventoryById.get(normalize(row.medicamento_id));\n  if (!inv) return 0;\n  const real = Number(inv.stock_real);\n  const reserved = Number(inv.stock_reservado);\n  return (isNaN(real) ? 0 : real) - (isNaN(reserved) ? 0 : reserved);\n}\n\n/**\n * Best active catalog row for a free-text query.\n * Returns { matched, score }: `matched` is the row only when score >= MATCH_THRESHOLD,\n * `score` is always the best score found (so callers/tests can assert on it).\n */\nfunction matchMedicine(query, catalogRows) {\n  const queryTokens = tokenize(query);\n  let queryDoseToken = null;\n  for (let i = 0; i < queryTokens.length; i++) {\n    if (isDoseToken(queryTokens[i])) {\n      queryDoseToken = queryTokens[i];\n      break;\n    }\n  }\n  const rows = (catalogRows || []).map(rowJson).filter(isActiveRow);\n  let bestRow = null;\n  let bestScore = 0;\n  for (let i = 0; i < rows.length; i++) {\n    const s = scoreCandidate(queryTokens, queryDoseToken, rows[i]);\n    if (bestRow === null || s > bestScore) {\n      bestRow = rows[i];\n      bestScore = s;\n    }\n  }\n  return {\n    matched: bestRow !== null && bestScore >= MATCH_THRESHOLD ? bestRow : null,\n    score: bestScore\n  };\n}\n\n/** CLP with \".\" thousands separator and \"$\" prefix, e.g. formatClp(4500) === \"$4.500\". */\nfunction formatClp(value) {\n  const n = Math.round(Number(value) || 0);\n  const digits = String(Math.abs(n));\n  let grouped = '';\n  for (let i = 0; i < digits.length; i++) {\n    grouped += digits.charAt(i);\n    const remaining = digits.length - 1 - i;\n    if (remaining > 0 && remaining % 3 === 0) grouped += '.';\n  }\n  return (n < 0 ? '-' : '') + '$' + grouped;\n}\n\n/** Up to MAX_SUGGESTIONS active rows with stock: bioequivalente_de points at the\n *  matched row, OR same principio_activo AND same dosis (RF-02 fallback). */\nfunction suggestionRows(matched, catalogRows, inventoryById) {\n  const matchedId = normalize(matched.medicamento_id);\n  const matchedActive = normalize(matched.principio_activo);\n  const matchedDose = normalize(matched.dosis);\n  const rows = (catalogRows || []).map(rowJson);\n  const out = [];\n  for (let i = 0; i < rows.length; i++) {\n    const cand = rows[i];\n    if (!isActiveRow(cand)) continue;\n    if (normalize(cand.medicamento_id) === matchedId) continue;\n    const byLink = normalize(cand.bioequivalente_de) === matchedId;\n    const byMoiety =\n      normalize(cand.principio_activo) === matchedActive &&\n      normalize(cand.dosis) === matchedDose;\n    if (!byLink && !byMoiety) continue;\n    if (stockNeto(cand, inventoryById) <= 0) continue;\n    out.push(cand);\n    if (out.length >= MAX_SUGGESTIONS) break;\n  }\n  return out;\n}\n\n/**\n * Full Spanish reply for a query. Returns '' when nothing should be sent\n * (empty/non-text input). Never invents names, prices or stock numbers (RF-01).\n */\nfunction buildReplyText(query, catalogRows, inventoryRows) {\n  const q = String(query === null || query === undefined ? '' : query).trim();\n  if (!q || !normalize(q)) return '';\n  const inventoryById = inventoryMap(inventoryRows);\n  const result = matchMedicine(q, catalogRows);\n\n  if (result.matched) {\n    const row = result.matched;\n    const stock = stockNeto(row, inventoryById);\n    const head =\n      row.nombre_comercial + ' ' + row.dosis + ' — ' +\n      formatClp(row.precio_unitario_clp) + ' c/u. Stock disponible: ' + stock + ' unidades.';\n    if (stock > 0) return head;\n\n    const alts = suggestionRows(row, catalogRows, inventoryById);\n    if (alts.length === 0) {\n      // No available bioequivalent: state it plainly, without naming any product.\n      return 'Este producto no tiene stock disponible en este momento y no contamos con bioequivalentes disponibles con stock. Puede intentar nuevamente más tarde.';\n    }\n    let text =\n      head + ' Producto agotado temporalmente. Bioequivalentes disponibles con stock:\\n';\n    for (let i = 0; i < alts.length; i++) {\n      const a = alts[i];\n      text +=\n        '- ' + a.nombre_comercial + ' ' + a.dosis + ' — ' +\n        formatClp(a.precio_unitario_clp) + ' c/u.\\n';\n    }\n    return text.replace(/\\n$/, '');\n  }\n\n  // No match (R-02 grounding): no product name, no price, no stock figure.\n  return 'No encontré \"' + q + '\" en nuestro catálogo. Le sugiero reintentar con el nombre del principio activo (el genérico).';\n}\n\n// --- n8n data assembly -------------------------------------------------------\n// Guarded: outside the editor (test harness) `$`/`$input` do not exist, so this\n// block stays inert and only the named functions above are reachable.\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  const incoming = $('parse_incoming').first().json;\n  const catalogRows = $('read_catalogo').all();\n  const inventoryRows = $input.all();\n  const text = incoming && incoming.text ? incoming.text : '';\n  const message = buildReplyText(text, catalogRows, inventoryRows);\n  if (!message) return []; // non-text input → empty array, nothing is sent\n  return [{ json: { phone: incoming.phone, message: message } }];\n}\n"
+      },
+      "id": "nbr01",
+      "name": "build_reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.WHATSAPP_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"{{ $json.message }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "nsw01",
+      "name": "send_whatsapp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "webhook_verify": {
+      "main": [
+        [
+          {
+            "node": "if_verify_token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_verify_token": {
+      "main": [
+        [
+          {
+            "node": "respond_challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "respond_forbidden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "webhook_messages": {
+      "main": [
+        [
+          {
+            "node": "parse_incoming",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_incoming": {
+      "main": [
+        [
+          {
+            "node": "read_catalogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_catalogo": {
+      "main": [
+        [
+          {
+            "node": "read_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_inventario": {
+      "main": [
+        [
+          {
+            "node": "build_reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "build_reply": {
+      "main": [
+        [
+          {
+            "node": "send_whatsapp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "us04-fuzzy-stock-9f4c2a71-6d3e-4b8a-a1c5-72e0d5f8b3a6",
+  "tags": []
+}

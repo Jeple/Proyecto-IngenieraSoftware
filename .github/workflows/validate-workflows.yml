@@ -49,6 +49,11 @@ jobs:
             if (invalid) process.exit(1);
           '
 
+      # US-04: fuzzy stock/price lookup tests (Node >= 18, zero deps).
+      # Exits 1 if any assertion fails.
+      - name: Run US-04 fuzzy match tests
+        run: node scripts/test-fuzzy-match.mjs
+
       - name: Warn when workflows/ has no JSON files yet
         run: |
           count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)
