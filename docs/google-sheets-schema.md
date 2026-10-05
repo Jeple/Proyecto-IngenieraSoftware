@@ -125,6 +125,8 @@ Notas:
 > **Supuesto de trabajo (sin modificar el enumerado):** si `requiere_receta = NO`, la orden nace directamente en `EN_PREPARACION` y no expira a las 12 horas. Si `requiere_receta = SI`, la orden nace en `PENDIENTE_RECETA` con `fecha_expiracion = fecha_creacion + 12 h`, tal como describe RF-06.
 >
 > Esta propuesta no agrega estados nuevos fuera del enumerado de `ordenes.estado`. Debe confirmarse con el personal de bodega y el equipo docente antes de implementar el workflow `reserva` (US-05).
+>
+> **Nota — implementación provisional en US-05:** `workflows/US-05-reserva.json` aplica este supuesto de forma provisoria (`requiere_receta = NO` → la orden nace en `EN_PREPARACION`; `requiere_receta = SI` → `PENDIENTE_RECETA` con `fecha_expiracion = fecha_creacion + 12 h`), pendiente de validación con bodega. No introduce estados fuera del enumerado; si la validación cambia la decisión, el ajuste se concentra en `initialStateFor` del nodo `evaluate_reservation`.
 
 ## Checklist de validación con el equipo
 

@@ -54,6 +54,11 @@ jobs:
       - name: Run US-04 fuzzy match tests
         run: node scripts/test-fuzzy-match.mjs
 
+      # US-05: reservation tests + drift guard between the US-04 and US-05
+      # fuzzy matcher copies (Node >= 18, zero deps). Exits 1 on failure.
+      - name: Run US-05 reservation tests
+        run: node scripts/test-reserva.mjs
+
       - name: Warn when workflows/ has no JSON files yet
         run: |
           count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)

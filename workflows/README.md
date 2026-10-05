@@ -36,7 +36,7 @@ El prefijo corresponde a la historia que **origina** el flujo. Cuando una histor
 | Historia | Archivo planeado | Workflow n8n | Requerimientos | Estado |
 |---|---|---|---|---|
 | US-04 | [`US-04-consulta-stock.json`](./US-04-consulta-stock.json) | `consulta-stock` | RF-01, RF-02 | **implementado** |
-| US-05 | `US-05-reserva.json` | `reserva` | RF-03, RF-04 | pendiente |
+| US-05 | [`US-05-reserva.json`](./US-05-reserva.json) | `reserva` | RF-03, RF-04 | **implementado** |
 | US-06 | Amplía `US-04-consulta-stock.json` | `consulta-stock` | RF-07 | pendiente |
 | US-08 | Sin archivo propio: Vapi invoca por HTTP los webhooks de `consulta-stock` y `reserva` | `consulta-stock`, `reserva` | RNF-02 | pendiente |
 | US-09 | `US-09-recetas.json` | `recetas` | RF-05 | pendiente |
@@ -51,12 +51,19 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 - **US-04 es deliberadamente sin LLM:** no contiene nodos Gemini/u otros modelos de lenguaje. Como la respuesta se arma solo con datos leídos de las hojas `catalogo`/`inventario`, el grounding de RF-01 (nunca inventar nombres, precios ni stock) es **estructural**, no depende de un prompt.
 - **Prueba local:** `node scripts/test-fuzzy-match.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta tras validar el JSON.
 
+### Notas sobre US-05 (`US-05-reserva.json`)
+
+- **Router de WhatsApp:** el router de intenciones de WhatsApp despachará los mensajes de tipo *reserva* al webhook de este workflow (`POST whatsapp-reserva`). Hasta que ese router exista, el webhook recibe las peticiones directamente.
+- **Matcher difuso duplicado a propósito:** n8n no puede importar JavaScript local sin habilitar la *allowlist* de carpetas, por lo que `US-04-consulta-stock.json` y `US-05-reserva.json` cada uno lleva su propia copia del matcher. `node scripts/test-reserva.mjs` actúa como *drift guard*: ejecuta la misma lista de consultas en ambas copias y falla si cambia un veredicto o el `medicamento_id` matcheado.
+- **Prueba local:** `node scripts/test-reserva.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta junto a las pruebas de US-04.
+
 ## Validación por CI
 
 El workflow [`.github/workflows/validate-workflows.yml`](../.github/workflows/validate-workflows.yml) se ejecuta en cada Push o Pull Request que toque `workflows/**`:
 
 - **Falla** si algún `workflows/*.json` no es JSON válido (el mensaje indica el archivo con error).
 - **Falla** si `node scripts/test-fuzzy-match.mjs` falla (pruebas del fuzzy match de US-04).
+- **Falla** si `node scripts/test-reserva.mjs` falla (pruebas de reserva de US-05 y drift guard del matcher).
 - **Advierte** (sin fallar) si la carpeta aún no contiene archivos JSON, como ocurre en el Sprint 0.
 
 La validación no requiere dependencias: usa el Node.js ya instalado en `ubuntu-latest`.
