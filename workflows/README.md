@@ -12,7 +12,7 @@ US-XX-<slug>.json
 - `<slug>`: nombre del workflow dentro de n8n, en minúsculas y con guiones (ej. `consulta-stock`).
 - Ejemplo completo: `US-04-consulta-stock.json`.
 
-El prefijo corresponde a la historia que **origina** el flujo. Si una historia posterior amplía exactamente el mismo flujo, modifica el mismo archivo en lugar de crear otro. Si el flujo es independiente — con su propio disparador y su propio webhook — crea el suyo propio: así nacieron `US-05-reserva.json`, `US-06-trazabilidad.json` y `US-10-cron-expiracion.json`. El *router de intenciones* de WhatsApp (todavía pendiente) será quien despache cada mensaje al webhook correcto.
+El prefijo corresponde a la historia que **origina** el flujo. Si una historia posterior amplía exactamente el mismo flujo, modifica el mismo archivo en lugar de crear otro. Si el flujo es independiente — con su propio disparador y su propio webhook — crea el suyo propio: así nacieron `US-05-reserva.json`, `US-06-trazabilidad.json` y `US-10-cron-expiracion.json`. El *router de intenciones* de Telegram (todavía pendiente, US-17) será quien despache cada mensaje al webhook correcto.
 
 ## Exportar un workflow desde n8n
 
@@ -29,7 +29,9 @@ El prefijo corresponde a la historia que **origina** el flujo. Si una historia p
 
 ## Credenciales
 
-**Los exportes de n8n nunca incluyen credenciales.** Cada desarrollador configura las suyas propias (Google Sheets/Drive, WhatsApp Cloud API, Gemini, Vapi) en su instancia local de n8n, siguiendo el [Quickstart del README](../README.md). Los identificadores compartidos (por ejemplo `GOOGLE_SHEET_ID`) se toman del archivo `.env` local; los secretos nunca se commitean.
+**Los exportes de n8n nunca incluyen credenciales.** Cada desarrollador configura las suyas propias (Google Sheets/Drive, Telegram Bot API, Gemini, Vapi) en su instancia local de n8n, siguiendo el [Quickstart del README](../README.md). Los identificadores compartidos (por ejemplo `GOOGLE_SHEET_ID`) se toman del archivo `.env` local; los secretos nunca se commitean.
+
+Toda la mensajería del sistema pasa hoy por **Telegram Bot API**: los webhooks de los workflows usan el prefijo `telegram-` y el destinatario de cada respuesta es el `chat_id` del usuario.
 
 ## Mapa de historias → workflow
 
@@ -39,7 +41,8 @@ El prefijo corresponde a la historia que **origina** el flujo. Si una historia p
 | US-05 | [`US-05-reserva.json`](./US-05-reserva.json) | `reserva` | RF-03, RF-04 | **implementado** |
 | US-06 | [`US-06-trazabilidad.json`](./US-06-trazabilidad.json) | `trazabilidad` | RF-07 | **implementado** |
 | US-08 | Sin archivo propio: Vapi invoca por HTTP los webhooks existentes | `consulta-stock`, `reserva` | RNF-02 | pendiente |
-| US-09 | `US-09-recetas.json` | `recetas` | RF-05 | pendiente |
+| US-09 | [`US-09-recetas-telegram.json`](./US-09-recetas-telegram.json) | `recetas-telegram` | RF-05 | **implementado** |
+| US-09 | [`US-09-recetas-email.json`](./US-09-recetas-email.json) | `recetas-email` | RF-05 | **implementado (postergado)** |
 | US-10 | [`US-10-cron-expiracion.json`](./US-10-cron-expiracion.json) | `cron-expiracion` | RF-06 | **implementado** |
 | US-11 | Sin workflow: PWA estática en [`../pwa/`](../pwa/) | endpoint backend pendiente | RF-08 | **PWA implementada**, endpoint pendiente |
 
@@ -48,23 +51,32 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 ### Notas sobre US-04 (`US-04-consulta-stock.json`)
 
 - **US-04 es deliberadamente sin LLM:** no contiene nodos Gemini ni otros modelos de lenguaje. Como la respuesta se arma solo con datos leídos de las hojas `catalogo`/`inventario`, el grounding de RF-01 (nunca inventar nombres, precios ni stock) es **estructural**, no depende de un prompt.
+- **Webhook propio:** `POST telegram-consulta`. El router de intenciones de Telegram (US-17) enviará aquí las consultas de stock y precios; hasta que exista, el webhook recibe las peticiones directamente.
 - **Prueba local:** `node scripts/test-fuzzy-match.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta tras validar el JSON.
 
 ### Notas sobre US-05 (`US-05-reserva.json`)
 
-- **Router de WhatsApp:** el router de intenciones de WhatsApp despachará los mensajes de tipo *reserva* al webhook de este workflow (`POST whatsapp-reserva`). Hasta que ese router exista, el webhook recibe las peticiones directamente.
+- **Router de Telegram:** el router de intenciones de Telegram despachará los mensajes de tipo *reserva* al webhook de este workflow (`POST telegram-reserva`). Hasta que ese router exista, el webhook recibe las peticiones directamente.
 - **Matcher difuso duplicado a propósito:** n8n no puede importar JavaScript local sin habilitar la *allowlist* de carpetas, por lo que `US-04-consulta-stock.json` y `US-05-reserva.json` cada uno lleva su propia copia del matcher. `node scripts/test-reserva.mjs` actúa como *drift guard*: ejecuta la misma lista de consultas en ambas copias y falla si cambia un veredicto o el `medicamento_id` matcheado.
 - **Prueba local:** `node scripts/test-reserva.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta junto a las pruebas de US-04.
 
 ### Notas sobre US-06 (`US-06-trazabilidad.json`)
 
-- **Webhook propio:** `POST whatsapp-trazabilidad`. El router de intenciones enviará aquí las consultas de estado (RUT o `#FAR-XXXX`); RF-07 vive en este flujo en lugar de dentro de `consulta-stock` para no arrastrar la lógica de catálogo a una consulta que no necesita catálogo.
+- **Webhook propio:** `POST telegram-trazabilidad`. El router de intenciones enviará aquí las consultas de estado (RUT o `#FAR-XXXX`); RF-07 vive en este flujo en lugar de dentro de `consulta-stock` para no arrastrar la lógica de catálogo a una consulta que no necesita catálogo.
 - **Precedencia de identificador:** si el mensaje trae código, se busca solo por código; si no, por RUT tomando el pedido más reciente. Nunca se inventa estado, precio ni stock.
 - **Prueba local:** `node scripts/test-trazabilidad.mjs` (Node ≥ 18, sin dependencias).
 
+### Notas sobre US-09 (`recetas-telegram` y `recetas-email`)
+
+- **Alcance de esta versión:** el canal activo es la foto por Telegram (`recetas-telegram`). La ruta por correo IMAP (`recetas-email`) queda **postergada a una versión posterior**: el workflow y su suite (`node scripts/test-recetas-email.mjs`) siguen en el repositorio y se ejecutan en la CI, pero están fuera del alcance actual y **no requieren configuración ahora**.
+- **Dos puntos de entrada, una misma rutina:** la foto llega por Telegram (`US-09-recetas-telegram.json`, webhook `POST telegram-recetas`) y el adjunto por correo IMAP (`US-09-recetas-email.json`); ambos flujos convergen en la misma rutina: subir a Google Drive → escribir `ordenes.url_receta` → pasar la orden a `RECETA_RECIBIDA` → registrar el movimiento en `bitacora`.
+- **Código de orden obligatorio:** la ruta por foto exige `#FAR-XXXX` en el pie de la foto (*caption*); la ruta por correo lo exige en el asunto. Sin código, la receta no se enlaza.
+- **Credenciales IMAP:** el usuario y la contraseña del buzón se configuran como credencial de n8n en cada instancia de desarrollador; nunca viajan en los exportes JSON. Las variables `IMAP_*` y `GOOGLE_DRIVE_RECETAS_FOLDER_ID` sí se toman del `.env`.
+- **Prueba local:** `node scripts/test-recetas-telegram.mjs` y `node scripts/test-recetas-email.mjs` (Node ≥ 18, sin dependencias).
+
 ### Notas sobre US-10 (`US-10-cron-expiracion.json`)
 
-- **Disparador horario:** evalúa solo órdenes en `PENDIENTE_RECETA` cuya `fecha_expiracion` ya venció (comparación de fechas reales, no de cadenas). Pasa a `CANCELADO_EXPIRADO`, libera el `stock_reservado` (agregado por medicamento, nunca negativo), registra en `bitacora` y avisa por WhatsApp.
+- **Disparador horario:** evalúa solo órdenes en `PENDIENTE_RECETA` cuya `fecha_expiracion` ya venció (comparación de fechas reales, no de cadenas). Pasa a `CANCELADO_EXPIRADO`, libera el `stock_reservado` (agregado por medicamento, nunca negativo), registra en `bitacora` y avisa por Telegram.
 - **Prueba local:** `node scripts/test-cron-expiracion.mjs` (Node ≥ 18, sin dependencias).
 
 ### Notas sobre US-11 (PWA del repartidor)
@@ -81,6 +93,8 @@ El workflow [`.github/workflows/validate-workflows.yml`](../.github/workflows/va
 - **Falla** si `node scripts/test-reserva.mjs` falla (reserva de US-05 y drift guard del matcher).
 - **Falla** si `node scripts/test-trazabilidad.mjs` falla (trazabilidad de US-06).
 - **Falla** si `node scripts/test-cron-expiracion.mjs` falla (expiración de US-10).
+- **Falla** si `node scripts/test-recetas-telegram.mjs` falla (ingesta de recetas por Telegram, US-09 / RF-05).
+- **Falla** si `node scripts/test-recetas-email.mjs` falla (ingesta de recetas por correo IMAP, US-09 / RF-05).
 - **Falla** si `node pwa/test/pwa.test.mjs` falla (funciones puras de la PWA de US-11).
 - **Advierte** (sin fallar) si la carpeta aún no contiene archivos JSON, como ocurre en el Sprint 0.
 

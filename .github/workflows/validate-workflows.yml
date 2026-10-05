@@ -75,6 +75,14 @@ jobs:
       - name: Run US-11 driver PWA tests
         run: node pwa/test/pwa.test.mjs
 
+      # US-09 / RF-05: recipe ingestion over Telegram (photo + #FAR-XXXX caption).
+      - name: Run US-09 Telegram recipe tests
+        run: node scripts/test-recetas-telegram.mjs
+
+      # US-09 / RF-05: recipe ingestion over IMAP email (subject + #FAR-XXXX).
+      - name: Run US-09 email recipe tests
+        run: node scripts/test-recetas-email.mjs
+
       - name: Warn when workflows/ has no JSON files yet
         run: |
           count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)

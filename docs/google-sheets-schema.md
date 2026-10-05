@@ -53,7 +53,7 @@ Notas:
 | `codigo_far` | text | Sí | Clave primaria con formato `FAR-0001`; se muestra al usuario como `#FAR-0001` (RF-03) |
 | `fecha_creacion` | datetime | Sí | Momento de confirmación de la solicitud |
 | `rut` | text | Sí | RUT del cliente |
-| `telefono` | text | Sí | Teléfono de contacto para notificaciones |
+| `telefono` | text | Sí | `chat_id` de Telegram del cliente. Se captura al crear la orden y se usa como destinatario de las notificaciones; puede ser también un id de grupo. Se conserva el nombre de la columna por compatibilidad con el modelo original |
 | `nombre_cliente` | text | Sí | Nombre del solicitante |
 | `medicamento_id` | text | Sí | Clave foránea → `catalogo.medicamento_id` |
 | `cantidad` | int (≥ 1) | Sí | Unidades solicitadas |
@@ -69,11 +69,16 @@ Enumeración de `estado` (RF-07: los estados vigentes son exactamente esta lista
 | Estado | Significado |
 |---|---|
 | `PENDIENTE_RECETA` | Orden confirmada; aguarda la fotografía de la receta |
-| `RECETA_RECIBIDA` | Receta almacenada en Google Drive y enlazada en `url_receta` |
+| `RECETA_RECIBIDA` | Receta almacenada en Google Drive y enlazada en `url_receta` (llegó por Telegram o por correo IMAP, RF-05); habilita el paso a `EN_PREPARACION` |
 | `EN_PREPARACION` | Bodega prepara el pedido |
 | `EN_RUTA` | Pedido en despacho vehicular |
 | `ENTREGADO` | Pedido entregado al vecino |
 | `CANCELADO_EXPIRADO` | Cancelado por el cron de 12 horas (RF-06) |
+
+Notas de `RECETA_RECIBIDA`:
+
+- El cambio de estado ocurre solo después de que la receta está en Google Drive y `ordenes.url_receta` apunta a ella; nunca se marca el estado con la imagen aún sin subir.
+- Junto con el estado se registra el movimiento `RECETA_RECIBIDA` en `bitacora` (delta `0`, sin efecto en `stock_reservado`) y se fija `fecha_receta`.
 
 ## Hoja `despachos`
 
@@ -96,7 +101,7 @@ Notas:
 | Columna | Tipo | Obligatoria | Descripción |
 |---|---|---|---|
 | `timestamp` | datetime | Sí | Momento del movimiento |
-| `accion` | text | Sí | Tipo de movimiento, p. ej. `RESERVA_ALTA`, `RESERVA_LIBERADA`, `EXPIRACION` |
+| `accion` | text | Sí | Tipo de movimiento, p. ej. `RESERVA_ALTA`, `RESERVA_LIBERADA`, `EXPIRACION`, `RECETA_RECIBIDA` |
 | `codigo_far` | text | Sí | Orden afectada |
 | `medicamento_id` | text | Sí | Medicamento afectado |
 | `delta_reservado` | int (con signo) | Sí | Variación de `stock_reservado` (positivo al reservar, negativo al liberar) |
@@ -113,7 +118,7 @@ Notas:
 |---|---|---|
 | Saldo neto y quiebre | `stock_neto = stock_real - stock_reservado`. Si el saldo es 0, se informa el quiebre y se sugieren bioequivalentes: filas de `catalogo` cuyo `bioequivalente_de` apunta al `medicamento_id` consultado (búsqueda inversa), solo con `activo = SI` | RF-02 |
 | Reserva inmediata | Toda orden confirmada incrementa `stock_reservado` de forma inmediata y registra el movimiento en `bitacora` | RF-04 |
-| Expiración a 12 horas | Un cron horario cancela las órdenes `PENDIENTE_RECETA` con `fecha_expiracion` vencida: estado `CANCELADO_EXPIRADO`, decremento de `stock_reservado`, registro en `bitacora` y notificación al usuario por WhatsApp | RF-06 |
+| Expiración a 12 horas | Un cron horario cancela las órdenes `PENDIENTE_RECETA` con `fecha_expiracion` vencida: estado `CANCELADO_EXPIRADO`, decremento de `stock_reservado`, registro en `bitacora` y notificación al usuario por Telegram | RF-06 |
 | Estados vigentes | Los estados válidos de una orden son exactamente la enumeración de `ordenes.estado`; RF-07 los devuelve al consultar por RUT o `#FAR-XXXX` | RF-07 |
 | Escrituras serializadas | Las escrituras de reserva son secuenciales y encoladas desde n8n (un solo worker). La API de Sheets se trata como recurso serializado para evitar condiciones de carrera y sobreventas | RNF-04 |
 | Recetas fuera de la planilla | `ordenes.url_receta` apunta a Google Drive con permisos restringidos a personal autorizado. Nunca se guardan imágenes de recetas dentro del spreadsheet | RNF-07 |

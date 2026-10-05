@@ -26,6 +26,14 @@ services:
       - GENERIC_TIMEZONE=America/Santiago
       - TZ=America/Santiago
       - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
+      # Optional: US-09 email channel, deferred to a later version.
+      # Telegram is the active channel, so these may all stay empty.
+      - IMAP_HOST=${IMAP_HOST}
+      - IMAP_PORT=${IMAP_PORT}
+      - IMAP_MAILBOX=${IMAP_MAILBOX}
+      - GOOGLE_DRIVE_RECETAS_FOLDER_ID=${GOOGLE_DRIVE_RECETAS_FOLDER_ID}
 
   cloudflared:
     image: cloudflare/cloudflared:latest
