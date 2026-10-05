@@ -253,6 +253,19 @@ function check(label, condition, detail) {
   );
 }
 
+// 11. Notifications carry chat_id (Telegram contract); the value is still read
+//     from the order's telefono column, which now stores Telegram chat ids.
+{
+  const order = makeOrder({ codigo_far: 'FAR-0011', telefono: '-1005550001' });
+  const { plan } = planFor([order]);
+  const notification = plan.notifications[0];
+  check(
+    '11. notification carries chat_id sourced from the telefono column',
+    notification.chat_id === '-1005550001' && !('phone' in notification),
+    JSON.stringify(notification)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 4. Summary.
 // ---------------------------------------------------------------------------

@@ -30,6 +30,15 @@ const {
   buildTrackingReply,
 } = factory();
 
+const parseNode = workflow.nodes.find((node) => node.name === 'parse_tracking_request');
+if (!parseNode || !parseNode.parameters || !parseNode.parameters.jsCode) {
+  console.error('FAIL could not locate parse_tracking_request jsCode in workflow JSON');
+  process.exit(1);
+}
+const parseApi = new Function(
+  parseNode.parameters.jsCode + '\n;return { isAuthorized, parseTelegramUpdate };'
+)();
+
 // ---------------------------------------------------------------------------
 // Fixtures (rows follow the authoritative schema from setup-sheets.gs)
 // ---------------------------------------------------------------------------
@@ -108,8 +117,8 @@ check('3. extractRut normalizes dotted/plain RUT, rejects malformed', () => {
 
 // 4. Lookup by code works when the request carries no RUT.
 check('4. lookup by code succeeds without RUT', () => {
-  const reply = buildTrackingReply({ phone: '56911111111', codigo_far: '#FAR-0001' }, catalog, noDispatches);
-  return Boolean(reply) && reply.message.includes('#FAR-0001');
+  const reply = buildTrackingReply({ chat_id: '56911111111', codigo_far: '#FAR-0001' }, catalog, noDispatches);
+  return Boolean(reply) && reply.message.includes('#FAR-0001') && reply.chat_id === '56911111111';
 });
 
 // 5. When both code and RUT are present, the code match wins.
@@ -122,7 +131,7 @@ check('5. code takes precedence over RUT', () => {
   });
   const picked = findOrder({ codigo_far: '#FAR-0001', rut: '99.999.999-9' }, [makeOrder(), other]);
   const reply = buildTrackingReply(
-    { phone: '56911111111', codigo_far: '#FAR-0001', rut: '99.999.999-9' },
+    { chat_id: '56911111111', codigo_far: '#FAR-0001', rut: '99.999.999-9' },
     [makeOrder(), other],
     noDispatches
   );
@@ -162,7 +171,7 @@ check('7. six enum states -> six distinct non-empty messages with #FAR-0001', ()
   ];
   const messages = states.map((estado) => {
     const reply = buildTrackingReply(
-      { phone: '56911111111', codigo_far: '#FAR-0001' },
+      { chat_id: '56911111111', codigo_far: '#FAR-0001' },
       [makeOrder({ estado })],
       noDispatches
     );
@@ -177,7 +186,7 @@ check('7. six enum states -> six distinct non-empty messages with #FAR-0001', ()
 
 // 8. Unknown code -> neutral not-found copy with no price, stock or status claim.
 check('8. unknown code -> neutral not-found, no price/stock/status leaked', () => {
-  const reply = buildTrackingReply({ phone: '56911111111', codigo_far: '#FAR-9999' }, catalog, noDispatches);
+  const reply = buildTrackingReply({ chat_id: '56911111111', codigo_far: '#FAR-9999' }, catalog, noDispatches);
   if (!reply) return false;
   const message = reply.message;
   return (
@@ -203,12 +212,12 @@ check('9. EN_RUTA ETA appended when positive, omitted when null', () => {
     fecha_marcado: '2026-10-01T10:00:00.000Z',
   };
   const withEta = buildTrackingReply(
-    { phone: '56911111111', codigo_far: '#FAR-0001' },
+    { chat_id: '56911111111', codigo_far: '#FAR-0001' },
     [makeOrder({ estado: 'EN_RUTA' })],
     [{ ...baseDispatch, eta_minutos: 18 }]
   ).message;
   const withoutEta = buildTrackingReply(
-    { phone: '56911111111', codigo_far: '#FAR-0001' },
+    { chat_id: '56911111111', codigo_far: '#FAR-0001' },
     [makeOrder({ estado: 'EN_RUTA' })],
     [{ ...baseDispatch, eta_minutos: null }]
   ).message;
@@ -223,7 +232,7 @@ check('9. EN_RUTA ETA appended when positive, omitted when null', () => {
 // 10. Estado outside the enum falls back without inventing detail.
 check('10. estado outside enum -> neutral fallback, no invented detail', () => {
   const reply = buildTrackingReply(
-    { phone: '56911111111', codigo_far: '#FAR-0001' },
+    { chat_id: '56911111111', codigo_far: '#FAR-0001' },
     [makeOrder({ estado: 'DESPACHADO_MAL' })],
     noDispatches
   );
@@ -236,7 +245,60 @@ check('11. empty input -> empty output (null reply, no message)', () => {
     buildTrackingReply(null, catalog, noDispatches) === null &&
     buildTrackingReply(undefined, catalog, noDispatches) === null &&
     buildTrackingReply({}, catalog, noDispatches) === null &&
-    buildTrackingReply({ phone: '56911111111' }, catalog, noDispatches) === null
+    buildTrackingReply({ chat_id: '56911111111' }, catalog, noDispatches) === null
+  );
+});
+
+// 12. Telegram webhook parsing + secret check (transport contract).
+const SECRET = 'us06-secret';
+const goodHeaders = { 'X-Telegram-Bot-Api-Secret-Token': SECRET };
+check('12. isAuthorized accepts correct secret, rejects wrong and missing', () => {
+  return (
+    parseApi.isAuthorized(goodHeaders, SECRET) === true &&
+    parseApi.isAuthorized(goodHeaders, 'wrong') === false &&
+    parseApi.isAuthorized({}, SECRET) === false &&
+    parseApi.isAuthorized(undefined, SECRET) === false &&
+    parseApi.isAuthorized({ 'x-telegram-bot-api-secret-token': SECRET }, SECRET) === true
+  );
+});
+
+// 13. A valid Telegram update extracts chat_id + codigo_far.
+check('13. valid update -> { chat_id, codigo_far }', () => {
+  const items = parseApi.parseTelegramUpdate(
+    {
+      update_id: 600001,
+      message: {
+        message_id: 31,
+        chat: { id: -100777888, type: 'private' },
+        date: 1770000000,
+        text: 'mi pedido FAR-0001 por favor',
+      },
+    },
+    goodHeaders,
+    SECRET
+  );
+  return (
+    items.length === 1 &&
+    items[0].chat_id === '-100777888' &&
+    items[0].codigo_far === '#FAR-0001'
+  );
+});
+
+// 14. Update without message and unauthorized requests produce EMPTY results.
+check('14. update without message -> EMPTY; unauthorized -> EMPTY', () => {
+  const update = {
+    update_id: 600002,
+    message: {
+      message_id: 32,
+      chat: { id: -100777888, type: 'private' },
+      date: 1770000001,
+      text: 'FAR-0001',
+    },
+  };
+  return (
+    parseApi.parseTelegramUpdate({ update_id: 1 }, goodHeaders, SECRET).length === 0 &&
+    parseApi.parseTelegramUpdate(update, { 'X-Telegram-Bot-Api-Secret-Token': 'wrong' }, SECRET).length === 0 &&
+    parseApi.parseTelegramUpdate(update, {}, SECRET).length === 0
   );
 });
 

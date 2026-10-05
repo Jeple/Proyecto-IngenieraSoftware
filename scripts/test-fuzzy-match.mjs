@@ -41,6 +41,16 @@ const load = new Function(
 );
 const api = load();
 
+// --- load parse_incoming jsCode (Telegram transport contract) outside n8n ---
+const parseNode = workflow.nodes.find((n) => n.name === 'parse_incoming');
+if (!parseNode || !parseNode.parameters.jsCode) {
+  console.error('FAIL  parse_incoming node or jsCode not found in workflow JSON');
+  process.exit(1);
+}
+const parseApi = new Function(
+  `${parseNode.parameters.jsCode}\n; return { isAuthorized, parseTelegramUpdate };`
+)();
+
 let passed = 0;
 let failed = 0;
 function check(label, condition, detail) {
@@ -162,6 +172,45 @@ check(
 check(
   '7c low-similarity query score < MATCH_THRESHOLD',
   api.matchMedicine('vitamina z para dormir', catalogo).score < api.MATCH_THRESHOLD
+);
+
+// 8. Telegram webhook parsing + secret check (transport contract).
+const SECRET = 'us04-secret';
+const goodHeaders = { 'X-Telegram-Bot-Api-Secret-Token': SECRET };
+check('8a isAuthorized accepts the correct secret', parseApi.isAuthorized(goodHeaders, SECRET) === true);
+check('8b isAuthorized rejects a wrong secret', parseApi.isAuthorized(goodHeaders, 'not-the-secret') === false);
+check('8c isAuthorized rejects a missing header', parseApi.isAuthorized({}, SECRET) === false && parseApi.isAuthorized(undefined, SECRET) === false);
+check(
+  '8d isAuthorized header lookup is case-insensitive',
+  parseApi.isAuthorized({ 'x-telegram-bot-api-secret-token': SECRET }, SECRET) === true
+);
+const tgUpdate = {
+  update_id: 700001,
+  message: {
+    message_id: 11,
+    from: { id: 555, is_bot: false },
+    chat: { id: -100998877, type: 'supergroup' },
+    date: 1770000000,
+    text: 'pregabalina 75'
+  }
+};
+const parsedItems = parseApi.parseTelegramUpdate(tgUpdate, goodHeaders, SECRET);
+check(
+  '8e valid update -> one item { chat_id, text, received_at }',
+  parsedItems.length === 1 &&
+    parsedItems[0].json.chat_id === '-100998877' &&
+    parsedItems[0].json.text === 'pregabalina 75' &&
+    typeof parsedItems[0].json.received_at === 'string',
+  JSON.stringify(parsedItems)
+);
+check(
+  '8f update without message -> EMPTY result',
+  parseApi.parseTelegramUpdate({ update_id: 1 }, goodHeaders, SECRET).length === 0
+);
+check(
+  '8g unauthorized request -> EMPTY result (wrong or missing secret)',
+  parseApi.parseTelegramUpdate(tgUpdate, { 'X-Telegram-Bot-Api-Secret-Token': 'wrong' }, SECRET).length === 0 &&
+    parseApi.parseTelegramUpdate(tgUpdate, {}, SECRET).length === 0
 );
 
 console.log('----------------------------------------');

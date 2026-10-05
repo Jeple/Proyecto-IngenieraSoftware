@@ -16,7 +16,10 @@
       "name": "cron_hourly",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [0, 300]
+      "position": [
+        0,
+        300
+      ]
     },
     {
       "parameters": {
@@ -45,7 +48,10 @@
       "name": "read_ordenes",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -74,7 +80,10 @@
       "name": "read_inventario",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [440, 300]
+      "position": [
+        440,
+        300
+      ]
     },
     {
       "parameters": {
@@ -103,19 +112,25 @@
       "name": "read_catalogo",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [660, 300]
+      "position": [
+        660,
+        300
+      ]
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "function toCount(value) {\n  const n = Math.trunc(Number(value));\n  return Number.isFinite(n) && n > 0 ? n : 0;\n}\n\nfunction isExpired(order, now) {\n  if (!order || order.estado !== 'PENDIENTE_RECETA') return false;\n  const raw = order.fecha_expiracion;\n  if (raw === null || raw === undefined || raw === '') return false;\n  const expiresAt = new Date(raw);\n  if (Number.isNaN(expiresAt.getTime())) return false;\n  const reference = now instanceof Date ? now : new Date(now);\n  if (Number.isNaN(reference.getTime())) return false;\n  return expiresAt.getTime() <= reference.getTime();\n}\n\nfunction selectExpiredOrders(orders, now) {\n  const source = Array.isArray(orders) ? orders : [];\n  return source.filter((order) => isExpired(order, now));\n}\n\nfunction findInventoryRow(inventoryRows, medicamentoId) {\n  const source = Array.isArray(inventoryRows) ? inventoryRows : [];\n  const key = String(medicamentoId);\n  return source.find((row) => row && String(row.medicamento_id) === key) || null;\n}\n\nfunction currentReserved(inventoryRows, medicamentoId) {\n  const row = findInventoryRow(inventoryRows, medicamentoId);\n  return row ? Math.max(0, toCount(row.stock_reservado)) : 0;\n}\n\nfunction aggregateInventoryUpdates(expiredOrders, inventoryRows, now) {\n  const nowIso = (now instanceof Date ? now : new Date(now)).toISOString();\n  const totals = new Map();\n  (expiredOrders || []).forEach((order) => {\n    const key = String(order.medicamento_id);\n    totals.set(key, (totals.get(key) || 0) + toCount(order.cantidad));\n  });\n  const updates = [];\n  totals.forEach((totalCantidad, key) => {\n    const row = findInventoryRow(inventoryRows, key);\n    if (!row) return;\n    const current = Math.max(0, toCount(row.stock_reservado));\n    const newReserved = Math.max(0, current - totalCantidad);\n    updates.push({\n      medicamento_id: row.medicamento_id,\n      stock_reservado: newReserved,\n      delta_reservado: newReserved - current,\n      clamped: totalCantidad > current,\n      ultima_actualizacion: nowIso,\n    });\n  });\n  return updates;\n}\n\nfunction distributeReleases(expiredOrders, inventoryRows) {\n  const releasedSoFar = new Map();\n  return (expiredOrders || []).map((order) => {\n    const key = String(order.medicamento_id);\n    const reserved = currentReserved(inventoryRows, key);\n    const wanted = toCount(order.cantidad);\n    const already = releasedSoFar.get(key) || 0;\n    const left = Math.max(0, reserved - already);\n    const released = Math.min(wanted, left);\n    releasedSoFar.set(key, already + released);\n    return { released: released, clamped: released < wanted };\n  });\n}\n\nfunction buildBitacoraRows(expiredOrders, inventoryRows, now) {\n  const nowIso = (now instanceof Date ? now : new Date(now)).toISOString();\n  const plan = distributeReleases(expiredOrders, inventoryRows);\n  return (expiredOrders || []).map((order, index) => {\n    const entry = plan[index];\n    let detalle =\n      'Expiracion 12h: liberadas ' +\n      entry.released +\n      ' de ' +\n      toCount(order.cantidad) +\n      ' unidades reservadas';\n    if (entry.clamped) detalle += '; CLAMP: stock_reservado insuficiente';\n    return {\n      timestamp: nowIso,\n      accion: 'EXPIRACION',\n      codigo_far: order.codigo_far,\n      medicamento_id: order.medicamento_id,\n      delta_reservado: -entry.released,\n      detalle: detalle,\n    };\n  });\n}\n\nfunction buildExpiryMessage(order, released, catalogRow) {\n  const code = order && order.codigo_far ? String(order.codigo_far) : '';\n  let message =\n    'Tu pedido #' +\n    code +\n    ' fue cancelado por falta de receta despu\u00e9s de 12 horas.';\n  if (catalogRow && catalogRow.nombre_comercial) {\n    message +=\n      ' Liberamos ' +\n      released +\n      ' unidades de ' +\n      catalogRow.nombre_comercial +\n      ' al stock.';\n  }\n  return message;\n}\n\nfunction buildNotifications(expiredOrders, inventoryRows, catalogRows) {\n  const plan = distributeReleases(expiredOrders, inventoryRows);\n  const source = Array.isArray(catalogRows) ? catalogRows : [];\n  return (expiredOrders || []).map((order, index) => {\n    const key = String(order.medicamento_id);\n    const catalogRow =\n      source.find((row) => row && String(row.medicamento_id) === key) || null;\n    return {\n      phone: order.telefono,\n      message: buildExpiryMessage(order, plan[index].released, catalogRow),\n    };\n  });\n}\n\nfunction buildExpiryPlan(expiredOrders, inventoryRows, catalogRows, now) {\n  return {\n    inventoryUpdates: aggregateInventoryUpdates(expiredOrders, inventoryRows, now),\n    bitacoraRows: buildBitacoraRows(expiredOrders, inventoryRows, now),\n    notifications: buildNotifications(expiredOrders, inventoryRows, catalogRows),\n  };\n}\n\n// --- n8n data assembly -------------------------------------------------------\n// Guarded: outside the editor (test harness) `$` does not exist, so this block\n// stays inert and only the named functions above are reachable.\nif (typeof $ !== 'undefined') {\n  const now = new Date();\n  const ordenes = $('read_ordenes').all().map((item) => item.json);\n  const inventario = $('read_inventario').all().map((item) => item.json);\n  const catalogo = $('read_catalogo').all().map((item) => item.json);\n  const expired = selectExpiredOrders(ordenes, now);\n  const plan = buildExpiryPlan(expired, inventario, catalogo, now);\n  return [\n    {\n      json: {\n        count: expired.length,\n        expired: expired,\n        inventoryUpdates: plan.inventoryUpdates,\n        bitacoraRows: plan.bitacoraRows,\n        notifications: plan.notifications,\n      },\n    },\n  ];\n}\n"
+        "jsCode": "function toCount(value) {\n  const n = Math.trunc(Number(value));\n  return Number.isFinite(n) && n > 0 ? n : 0;\n}\n\nfunction isExpired(order, now) {\n  if (!order || order.estado !== 'PENDIENTE_RECETA') return false;\n  const raw = order.fecha_expiracion;\n  if (raw === null || raw === undefined || raw === '') return false;\n  const expiresAt = new Date(raw);\n  if (Number.isNaN(expiresAt.getTime())) return false;\n  const reference = now instanceof Date ? now : new Date(now);\n  if (Number.isNaN(reference.getTime())) return false;\n  return expiresAt.getTime() <= reference.getTime();\n}\n\nfunction selectExpiredOrders(orders, now) {\n  const source = Array.isArray(orders) ? orders : [];\n  return source.filter((order) => isExpired(order, now));\n}\n\nfunction findInventoryRow(inventoryRows, medicamentoId) {\n  const source = Array.isArray(inventoryRows) ? inventoryRows : [];\n  const key = String(medicamentoId);\n  return source.find((row) => row && String(row.medicamento_id) === key) || null;\n}\n\nfunction currentReserved(inventoryRows, medicamentoId) {\n  const row = findInventoryRow(inventoryRows, medicamentoId);\n  return row ? Math.max(0, toCount(row.stock_reservado)) : 0;\n}\n\nfunction aggregateInventoryUpdates(expiredOrders, inventoryRows, now) {\n  const nowIso = (now instanceof Date ? now : new Date(now)).toISOString();\n  const totals = new Map();\n  (expiredOrders || []).forEach((order) => {\n    const key = String(order.medicamento_id);\n    totals.set(key, (totals.get(key) || 0) + toCount(order.cantidad));\n  });\n  const updates = [];\n  totals.forEach((totalCantidad, key) => {\n    const row = findInventoryRow(inventoryRows, key);\n    if (!row) return;\n    const current = Math.max(0, toCount(row.stock_reservado));\n    const newReserved = Math.max(0, current - totalCantidad);\n    updates.push({\n      medicamento_id: row.medicamento_id,\n      stock_reservado: newReserved,\n      delta_reservado: newReserved - current,\n      clamped: totalCantidad > current,\n      ultima_actualizacion: nowIso,\n    });\n  });\n  return updates;\n}\n\nfunction distributeReleases(expiredOrders, inventoryRows) {\n  const releasedSoFar = new Map();\n  return (expiredOrders || []).map((order) => {\n    const key = String(order.medicamento_id);\n    const reserved = currentReserved(inventoryRows, key);\n    const wanted = toCount(order.cantidad);\n    const already = releasedSoFar.get(key) || 0;\n    const left = Math.max(0, reserved - already);\n    const released = Math.min(wanted, left);\n    releasedSoFar.set(key, already + released);\n    return { released: released, clamped: released < wanted };\n  });\n}\n\nfunction buildBitacoraRows(expiredOrders, inventoryRows, now) {\n  const nowIso = (now instanceof Date ? now : new Date(now)).toISOString();\n  const plan = distributeReleases(expiredOrders, inventoryRows);\n  return (expiredOrders || []).map((order, index) => {\n    const entry = plan[index];\n    let detalle =\n      'Expiracion 12h: liberadas ' +\n      entry.released +\n      ' de ' +\n      toCount(order.cantidad) +\n      ' unidades reservadas';\n    if (entry.clamped) detalle += '; CLAMP: stock_reservado insuficiente';\n    return {\n      timestamp: nowIso,\n      accion: 'EXPIRACION',\n      codigo_far: order.codigo_far,\n      medicamento_id: order.medicamento_id,\n      delta_reservado: -entry.released,\n      detalle: detalle,\n    };\n  });\n}\n\nfunction buildExpiryMessage(order, released, catalogRow) {\n  const code = order && order.codigo_far ? String(order.codigo_far) : '';\n  let message =\n    'Tu pedido #' +\n    code +\n    ' fue cancelado por falta de receta después de 12 horas.';\n  if (catalogRow && catalogRow.nombre_comercial) {\n    message +=\n      ' Liberamos ' +\n      released +\n      ' unidades de ' +\n      catalogRow.nombre_comercial +\n      ' al stock.';\n  }\n  return message;\n}\n\nfunction buildNotifications(expiredOrders, inventoryRows, catalogRows) {\n  const plan = distributeReleases(expiredOrders, inventoryRows);\n  const source = Array.isArray(catalogRows) ? catalogRows : [];\n  return (expiredOrders || []).map((order, index) => {\n    const key = String(order.medicamento_id);\n    const catalogRow =\n      source.find((row) => row && String(row.medicamento_id) === key) || null;\n    return {\n      // The `telefono` column stores the Telegram chat id captured at order\n      // creation (column name kept for the sheet schema); the payload field is chat_id.\n      chat_id: order.telefono,\n      message: buildExpiryMessage(order, plan[index].released, catalogRow),\n    };\n  });\n}\n\nfunction buildExpiryPlan(expiredOrders, inventoryRows, catalogRows, now) {\n  return {\n    inventoryUpdates: aggregateInventoryUpdates(expiredOrders, inventoryRows, now),\n    bitacoraRows: buildBitacoraRows(expiredOrders, inventoryRows, now),\n    notifications: buildNotifications(expiredOrders, inventoryRows, catalogRows),\n  };\n}\n\n// --- n8n data assembly -------------------------------------------------------\n// Guarded: outside the editor (test harness) `$` does not exist, so this block\n// stays inert and only the named functions above are reachable.\nif (typeof $ !== 'undefined') {\n  const now = new Date();\n  const ordenes = $('read_ordenes').all().map((item) => item.json);\n  const inventario = $('read_inventario').all().map((item) => item.json);\n  const catalogo = $('read_catalogo').all().map((item) => item.json);\n  const expired = selectExpiredOrders(ordenes, now);\n  const plan = buildExpiryPlan(expired, inventario, catalogo, now);\n  return [\n    {\n      json: {\n        count: expired.length,\n        expired: expired,\n        inventoryUpdates: plan.inventoryUpdates,\n        bitacoraRows: plan.bitacoraRows,\n        notifications: plan.notifications,\n      },\n    },\n  ];\n}\n"
       },
       "id": "n05",
       "name": "find_expired",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [880, 300],
-      "notes": "RF-06: selects PENDIENTE_RECETA orders with fecha_expiracion <= now (inclusive, date-parsed), aggregates stock release per medicamento_id, clamps at 0, builds bitacora rows (accion EXPIRACION) and WhatsApp messages. Emits exactly one item."
+      "position": [
+        880,
+        300
+      ],
+      "notes": "RF-06: selects PENDIENTE_RECETA orders with fecha_expiracion <= now (inclusive, date-parsed), aggregates stock release per medicamento_id, clamps at 0, builds bitacora rows (accion EXPIRACION) and Telegram messages. Emits exactly one item."
     },
     {
       "parameters": {
@@ -145,7 +160,10 @@
       "name": "if_any_expired",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1100, 300]
+      "position": [
+        1100,
+        300
+      ]
     },
     {
       "parameters": {
@@ -156,7 +174,10 @@
       "name": "expand_orders",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1320, 300]
+      "position": [
+        1320,
+        300
+      ]
     },
     {
       "parameters": {
@@ -179,7 +200,9 @@
             "estado": "={{ $json.estado }}",
             "fecha_expiracion": "={{ $json.fecha_expiracion }}"
           },
-          "matchingColumns": ["codigo_far"],
+          "matchingColumns": [
+            "codigo_far"
+          ],
           "schema": []
         },
         "options": {}
@@ -188,7 +211,10 @@
       "name": "update_ordenes",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1540, 300],
+      "position": [
+        1540,
+        300
+      ],
       "notes": "RF-06: appendOrUpdate keyed on codigo_far; only estado and fecha_expiracion are mapped, the remaining columns stay untouched."
     },
     {
@@ -200,7 +226,10 @@
       "name": "expand_inventory",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1760, 300]
+      "position": [
+        1760,
+        300
+      ]
     },
     {
       "parameters": {
@@ -223,7 +252,9 @@
             "stock_reservado": "={{ $json.stock_reservado }}",
             "ultima_actualizacion": "={{ $json.ultima_actualizacion }}"
           },
-          "matchingColumns": ["medicamento_id"],
+          "matchingColumns": [
+            "medicamento_id"
+          ],
           "schema": []
         },
         "options": {}
@@ -232,7 +263,10 @@
       "name": "update_inventario",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1980, 300],
+      "position": [
+        1980,
+        300
+      ],
       "notes": "RF-06: one row per affected medicamento_id with the final clamped stock_reservado. stock_neto is left unmapped (formula column)."
     },
     {
@@ -244,7 +278,10 @@
       "name": "emit_bitacora",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2200, 300]
+      "position": [
+        2200,
+        300
+      ]
     },
     {
       "parameters": {
@@ -279,47 +316,43 @@
       "name": "append_bitacora",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2420, 300],
+      "position": [
+        2420,
+        300
+      ],
       "notes": "RF-06: audit row per expired order, accion = EXPIRACION, delta_reservado signed negative (the amount actually released)."
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const notifications = $('find_expired').item.json.notifications || [];\nreturn notifications.map((entry) => ({\n  json: { phone: entry.phone, message: entry.message },\n}));\n"
+        "jsCode": "const notifications = $('find_expired').item.json.notifications || [];\nreturn notifications.map((entry) => ({\n  json: { chat_id: entry.chat_id, message: entry.message },\n}));\n"
       },
       "id": "n13",
       "name": "emit_notifications",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2640, 300]
+      "position": [
+        2640,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.WHATSAPP_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"={{ $json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"={{ $json.message }}\"\n  }\n}",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
         "options": {}
       },
       "id": "n14",
-      "name": "send_whatsapp",
+      "name": "send_telegram",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2860, 300]
+      "position": [
+        2860,
+        300
+      ]
     }
   ],
   "connections": {
@@ -460,7 +493,7 @@
       "main": [
         [
           {
-            "node": "send_whatsapp",
+            "node": "send_telegram",
             "type": "main",
             "index": 0
           }

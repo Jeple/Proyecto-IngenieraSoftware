@@ -66,7 +66,9 @@ const api = loadNode(wf5, 'evaluate_reservation', [
   'COVERAGE_TOKEN_MIN', 'MATCH_THRESHOLD'
 ]);
 const finalizeApi = loadNode(wf5, 'finalize_reply', ['verifyReservation', 'normalize']);
-const parseApi = loadNode(wf5, 'parse_reservation', ['parseReservationText', 'extractQuantity']);
+const parseApi = loadNode(wf5, 'parse_reservation', [
+  'parseReservationText', 'extractQuantity', 'isAuthorized', 'parseTelegramUpdate'
+]);
 const us04Api = loadNode(wf4, 'build_reply', [
   'matchMedicine', 'formatClp', 'buildReplyText', 'COVERAGE_TOKEN_MIN', 'MATCH_THRESHOLD'
 ]);
@@ -132,7 +134,7 @@ check('3e only enum states are produced', ['PENDIENTE_RECETA', 'EN_PREPARACION']
 
 // 4. order payload: stock increment + total price ---------------------------------
 const commit = api.evaluateReservation(
-  { phone: '56987654321', query: 'losartan 50', quantity: 3, rut: '12.345.678-5' },
+  { chat_id: '56987654321', query: 'losartan 50', quantity: 3, rut: '12.345.678-5' },
   catalogo, inventario, []
 );
 check('4a decision COMMIT', commit.decision === 'COMMIT', JSON.stringify(commit).slice(0, 200));
@@ -141,17 +143,18 @@ check('4c precio_total_clp = unit * cantidad (640 * 3 = 1920)', commit.order_row
 check('4d bitacora row RESERVA_ALTA with delta_reservado = cantidad', commit.bitacora_row && commit.bitacora_row.accion === 'RESERVA_ALTA' && commit.bitacora_row.delta_reservado === 3, JSON.stringify(commit.bitacora_row));
 check('4e order row carries phone and RUT (RF-03)', commit.order_row && commit.order_row.telefono === '56987654321' && commit.order_row.rut === '12.345.678-5', JSON.stringify(commit.order_row));
 check('4f bitacora/orden share the same codigo_far', commit.bitacora_row.codigo_far === commit.order_row.codigo_far && commit.code === 'FAR-0001', commit.code);
+check('4g result carries chat_id (Telegram recipient)', commit.chat_id === '56987654321', commit.chat_id);
 
 // 5. reply copy --------------------------------------------------------------------
 const paySi = api.buildCommitPayload(
-  { phone: '56911111111', query: 'sertralina 50', quantity: 4, rut: '' },
+  { chat_id: '56911111111', query: 'sertralina 50', quantity: 4, rut: '' },
   byId('MED-0004'), invById('MED-0004'), [], created
 ); // 1150 * 4 = 4600
 check('5a reply contains #FAR-0001', paySi.message.includes('#FAR-0001'), paySi.message);
 check('5b reply contains a $4.500-style total ($4.600)', paySi.message.includes('$4.600') && api.formatClp(4500) === '$4.500', paySi.message);
 check('5c 12-hour recipe instruction present when requiere_receta = SI', paySi.message.includes('12 horas') && paySi.message.includes('receta médica'), paySi.message);
 const payNo = api.buildCommitPayload(
-  { phone: '56911111111', query: 'omeprazol 20', quantity: 1, rut: '' },
+  { chat_id: '56911111111', query: 'omeprazol 20', quantity: 1, rut: '' },
   byId('MED-0005'), invById('MED-0005'), [], created
 ); // 780 * 1 = 780
 check('5d NO recipe: no 12-hour sentence, born in EN_PREPARACION', !payNo.message.includes('12 horas') && !payNo.message.includes('Envíe la foto') && payNo.message.includes('No requiere receta') && payNo.order_row.estado === 'EN_PREPARACION' && !payNo.order_row.fecha_expiracion, payNo.message);
@@ -159,21 +162,21 @@ check('5e SI recipe order born in PENDIENTE_RECETA with expiry', paySi.order_row
 
 // 6. insufficient stock: no code, no write payload, exact remaining ---------------
 const tooMany = api.evaluateReservation(
-  { phone: '56987654321', query: 'losartan 50', quantity: 500, rut: '' },
+  { chat_id: '56987654321', query: 'losartan 50', quantity: 500, rut: '' },
   catalogo, inventario, []
 );
 check('6a decision REJECT', tooMany.decision === 'REJECT', JSON.stringify(tooMany).slice(0, 160));
 check('6b no code and no write payload', tooMany.code === '' && tooMany.order_row === null && tooMany.inventory_row === null && tooMany.bitacora_row === null && tooMany.expected_reservado === null, JSON.stringify(tooMany).slice(0, 200));
 check('6c message states the remaining units (108)', tooMany.message.includes('108'), tooMany.message);
 const agotadoReply = api.evaluateReservation(
-  { phone: '56987654321', query: 'pregabalina 75', quantity: 1, rut: '' },
+  { chat_id: '56987654321', query: 'pregabalina 75', quantity: 1, rut: '' },
   catalogo, inventario, []
 );
 check('6d available <= 0 uses US-04 agotamiento + bioequivalentes wording', agotadoReply.decision === 'REJECT' && agotadoReply.message.includes('agotado') && agotadoReply.message.includes('Bioequivalentes disponibles con stock') && agotadoReply.code === '', agotadoReply.message);
 
 // 7. no match: grounded reply (R-02) -----------------------------------------------
 const noMatch = api.evaluateReservation(
-  { phone: '56987654321', query: 'vitamina z para dormir', quantity: 1, rut: '' },
+  { chat_id: '56987654321', query: 'vitamina z para dormir', quantity: 1, rut: '' },
   catalogo, inventario, []
 );
 check('7a no-match decision REJECT', noMatch.decision === 'REJECT', JSON.stringify(noMatch).slice(0, 160));
@@ -182,7 +185,7 @@ check('7c reply has no stock number (digits)', !/\d/.test(noMatch.message), noMa
 const named = catalogo.map((r) => r.nombre_comercial).filter((n) => noMatch.message.includes(n));
 check('7d reply names no fixture product', named.length === 0, named.join(', '));
 const emptyQuery = api.evaluateReservation(
-  { phone: '56987654321', query: '   ', quantity: 1, rut: '' },
+  { chat_id: '56987654321', query: '   ', quantity: 1, rut: '' },
   catalogo, inventario, []
 );
 const emptyNamed = catalogo.map((r) => r.nombre_comercial).filter((n) => emptyQuery.message.includes(n));
@@ -215,6 +218,45 @@ check('9c missing row counts as conflict', missingCheck.ok === false && missingC
 const finOk = finalizeApi.verifyReservation(expected, rereadOk, 'MED-0002');
 const finBad = finalizeApi.verifyReservation(expected, rereadBad, 'MED-0002');
 check('9d finalize_reply copy agrees', JSON.stringify(finOk) === JSON.stringify(okCheck) && JSON.stringify(finBad) === JSON.stringify(badCheck));
+
+// 10. Telegram webhook parsing + secret check (transport contract) ----------------
+const SECRET = 'us05-secret';
+const goodHeaders = { 'X-Telegram-Bot-Api-Secret-Token': SECRET };
+check('10a isAuthorized accepts the correct secret', parseApi.isAuthorized(goodHeaders, SECRET) === true);
+check('10b isAuthorized rejects a wrong secret', parseApi.isAuthorized(goodHeaders, 'nope') === false);
+check('10c isAuthorized rejects a missing header', parseApi.isAuthorized({}, SECRET) === false && parseApi.isAuthorized(null, SECRET) === false);
+check(
+  '10d isAuthorized header lookup is case-insensitive',
+  parseApi.isAuthorized({ 'x-telegram-bot-api-secret-token': SECRET }, SECRET) === true
+);
+const tgUpdate = {
+  update_id: 500001,
+  message: {
+    message_id: 21,
+    chat: { id: -100123456, type: 'supergroup' },
+    date: 1770000000,
+    text: sample
+  }
+};
+const tgItems = parseApi.parseTelegramUpdate(tgUpdate, goodHeaders, SECRET);
+check(
+  '10e valid update -> chat_id + parsed reservation text',
+  tgItems.length === 1 &&
+    tgItems[0].json.chat_id === '-100123456' &&
+    tgItems[0].json.quantity === 2 &&
+    tgItems[0].json.rut === '12.345.678-5' &&
+    tgItems[0].json.query === 'pregabalina 75',
+  JSON.stringify(tgItems)
+);
+check(
+  '10f update without message -> EMPTY result',
+  parseApi.parseTelegramUpdate({ update_id: 9 }, goodHeaders, SECRET).length === 0
+);
+check(
+  '10g unauthorized request -> EMPTY result (wrong or missing secret)',
+  parseApi.parseTelegramUpdate(tgUpdate, { 'X-Telegram-Bot-Api-Secret-Token': 'wrong' }, SECRET).length === 0 &&
+    parseApi.parseTelegramUpdate(tgUpdate, {}, SECRET).length === 0
+);
 
 console.log('----------------------------------------');
 console.log(`SUMMARY: ${passed} passed, ${failed} failed, ${passed + failed} total`);
