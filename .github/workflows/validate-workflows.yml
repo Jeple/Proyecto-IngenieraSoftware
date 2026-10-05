@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - "workflows/**"
+      - "scripts/**"
+      - "pwa/**"
       - ".github/workflows/validate-workflows.yml"
   pull_request:
     paths:
       - "workflows/**"
+      - "scripts/**"
+      - "pwa/**"
       - ".github/workflows/validate-workflows.yml"
 
 jobs:
@@ -58,6 +62,18 @@ jobs:
       # fuzzy matcher copies (Node >= 18, zero deps). Exits 1 on failure.
       - name: Run US-05 reservation tests
         run: node scripts/test-reserva.mjs
+
+      # US-06: delivery tracking by RUT or order code (RF-07).
+      - name: Run US-06 tracking tests
+        run: node scripts/test-trazabilidad.mjs
+
+      # US-10: 12-hour recipe expiry cron (RF-06).
+      - name: Run US-10 expiry cron tests
+        run: node scripts/test-cron-expiracion.mjs
+
+      # US-11: driver PWA pure functions (no DOM emulation, zero deps).
+      - name: Run US-11 driver PWA tests
+        run: node pwa/test/pwa.test.mjs
 
       - name: Warn when workflows/ has no JSON files yet
         run: |
