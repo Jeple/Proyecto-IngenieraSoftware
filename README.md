@@ -92,6 +92,7 @@ Los commits directos a `main` y `develop` están prohibidos.
 - US-09: Ingesta Asíncrona de Recetas Médicas — **Telegram implementado**; canal de correo (IMAP) **postergado** a una versión posterior
 - US-10: Tarea Programada (Cron) de Expiración a 12 Horas — **implementado**
 - US-11: Módulo Web Conductor y Tiempos de Entrega (OSRM) — **implementado** (PWA; endpoint backend pendiente)
+- US-21: Observabilidad, Alertas y Recuperación de Workflows — **implementado** (alertas por Telegram + runbook; GitHub #20)
 - US-12: Video Sprint Review y Documentación Sprint 2
 
 **Sprint 3 — Calidad, Testing E2E y Examen Final**

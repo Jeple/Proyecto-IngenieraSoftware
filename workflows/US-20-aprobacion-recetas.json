@@ -310,7 +310,10 @@
         2380,
         200
       ],
-      "id": "us20-node-11"
+      "id": "us20-node-11",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -328,7 +331,10 @@
         2600,
         200
       ],
-      "id": "us20-node-12"
+      "id": "us20-node-12",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {

@@ -124,7 +124,10 @@
         1200,
         0
       ],
-      "id": "us06-node-6"
+      "id": "us06-node-6",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {

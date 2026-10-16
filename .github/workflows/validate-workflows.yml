@@ -75,6 +75,10 @@ jobs:
       - name: Run US-20 pharmacist approval tests
         run: node scripts/test-aprobacion.mjs
 
+      # US-21: workflow failure alerts (Error Trigger -> Telegram admin).
+      - name: Run US-21 alert tests
+        run: node scripts/test-alertas.mjs
+
       # US-11: driver PWA pure functions (no DOM emulation, zero deps).
       - name: Run US-11 driver PWA tests
         run: node pwa/test/pwa.test.mjs
