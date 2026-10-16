@@ -83,6 +83,10 @@ jobs:
       - name: Run demo panel consistency test
         run: node scripts/test-panel.mjs
 
+      # Mapa de workflows: consistencia con los JSON reales.
+      - name: Run workflow map consistency test
+        run: node scripts/test-mapa.mjs
+
       # US-11: driver PWA pure functions (no DOM emulation, zero deps).
       - name: Run US-11 driver PWA tests
         run: node pwa/test/pwa.test.mjs
