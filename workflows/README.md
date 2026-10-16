@@ -76,11 +76,14 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 - **Dos puntos de entrada, una misma rutina:** la foto llega por Telegram (`US-09-recetas-telegram.json`, webhook `POST telegram-recetas`) y el adjunto por correo IMAP (`US-09-recetas-email.json`); ambos flujos convergen en la misma rutina: subir a Google Drive → escribir `ordenes.url_receta` → pasar la orden a `RECETA_RECIBIDA` → registrar el movimiento en `bitacora`.
 - **Código de orden obligatorio:** la ruta por foto exige `#FAR-XXXX` en el pie de la foto (*caption*); la ruta por correo lo exige en el asunto. Sin código, la receta no se enlaza.
 - **Credenciales IMAP:** el usuario y la contraseña del buzón se configuran como credencial de n8n en cada instancia de desarrollador; nunca viajan en los exportes JSON. Las variables `IMAP_*` y `GOOGLE_DRIVE_RECETAS_FOLDER_ID` sí se toman del `.env`.
+- **Titularidad (GitHub #19):** la receta solo se asocia desde el chat que creó el pedido; un chat distinto recibe el mismo mensaje que un código inexistente, sin revelar si existe.
+- **Auditoría:** la bitácora de la receta incluye `estado_anterior`, `estado_nuevo` y `actor` (`cliente:<chat_id>`).
 - **Prueba local:** `node scripts/test-recetas-telegram.mjs` y `node scripts/test-recetas-email.mjs` (Node ≥ 18, sin dependencias).
 
 ### Notas sobre US-10 (`US-10-cron-expiracion.json`)
 
 - **Disparador horario:** evalúa solo órdenes en `PENDIENTE_RECETA` cuya `fecha_expiracion` ya venció (comparación de fechas reales, no de cadenas). Pasa a `CANCELADO_EXPIRADO`, libera el `stock_reservado` (agregado por medicamento, nunca negativo), registra en `bitacora` y avisa por Telegram.
+- **Auditoría:** cada expiración registra `estado_anterior`, `estado_nuevo` y `actor` (`sistema:cron`) en la bitácora.
 - **Prueba local:** `node scripts/test-cron-expiracion.mjs` (Node ≥ 18, sin dependencias).
 
 ### Notas sobre US-11 (PWA del repartidor)

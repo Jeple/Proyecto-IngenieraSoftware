@@ -78,25 +78,40 @@ function check(label, condition, detail) {
   check('2c missing photo -> null', parseFns.selectPhotoFileId(undefined) === null);
 }
 
-const pendingOrder = { codigo_far: 'FAR-0001', estado: 'PENDIENTE_RECETA' };
-const routedOrder = { codigo_far: 'FAR-0001', estado: 'EN_RUTA' };
+const pendingOrder = { codigo_far: 'FAR-0001', estado: 'PENDIENTE_RECETA', telefono: '424242' };
+const routedOrder = { codigo_far: 'FAR-0001', estado: 'EN_RUTA', telefono: '424242' };
 
 // --- 3. classifyAction -> ASK_CODE when the code is absent ------------------
 {
-  const action = actionFns.classifyAction({ codigo_far: '', file_id: 'photo', order: null });
+  const action = actionFns.classifyAction({ codigo_far: '', file_id: 'photo', order: null, chat_id: '424242' });
   check('3 empty code -> ASK_CODE', action === 'ASK_CODE', action);
 }
 
-// --- 4. classifyAction -> NOT_PENDING (unknown code / wrong estado) ----------
+// --- 4. classifyAction -> NOT_FOUND (unknown code, foreign chat) / NOT_PENDING ---
 {
-  const unknown = actionFns.classifyAction({ codigo_far: 'FAR-0001', file_id: 'photo', order: null });
+  const unknown = actionFns.classifyAction({ codigo_far: 'FAR-0001', file_id: 'photo', order: null, chat_id: '424242' });
   const wrongEstado = actionFns.classifyAction({
     codigo_far: 'FAR-0001',
     file_id: 'photo',
-    order: routedOrder
+    order: routedOrder,
+    chat_id: '424242'
   });
-  check('4 no matching order -> NOT_PENDING', unknown === 'NOT_PENDING', unknown);
+  const foreignChat = actionFns.classifyAction({
+    codigo_far: 'FAR-0001',
+    file_id: 'photo',
+    order: pendingOrder,
+    chat_id: '999999'
+  });
+  const noOwner = actionFns.classifyAction({
+    codigo_far: 'FAR-0001',
+    file_id: 'photo',
+    order: { codigo_far: 'FAR-0001', estado: 'PENDIENTE_RECETA' },
+    chat_id: '424242'
+  });
+  check('4 no matching order -> NOT_FOUND', unknown === 'NOT_FOUND', unknown);
   check('4b order in another estado -> NOT_PENDING', wrongEstado === 'NOT_PENDING', wrongEstado);
+  check('4c foreign chat -> NOT_FOUND (titularidad)', foreignChat === 'NOT_FOUND', foreignChat);
+  check('4d order without telefono -> NOT_FOUND', noOwner === 'NOT_FOUND', noOwner);
 }
 
 // --- 5. classifyAction -> ASK_PHOTO (pending, no photo) ---------------------
@@ -104,7 +119,8 @@ const routedOrder = { codigo_far: 'FAR-0001', estado: 'EN_RUTA' };
   const action = actionFns.classifyAction({
     codigo_far: 'FAR-0001',
     file_id: null,
-    order: pendingOrder
+    order: pendingOrder,
+    chat_id: '424242'
   });
   check('5 pending order + no photo -> ASK_PHOTO', action === 'ASK_PHOTO', action);
 }
@@ -114,7 +130,8 @@ const routedOrder = { codigo_far: 'FAR-0001', estado: 'EN_RUTA' };
   const action = actionFns.classifyAction({
     codigo_far: 'FAR-0001',
     file_id: 'photo-id',
-    order: pendingOrder
+    order: pendingOrder,
+    chat_id: '424242'
   });
   check('6 pending order + photo -> UPLOAD', action === 'UPLOAD', action);
 }
@@ -124,11 +141,12 @@ const routedOrder = { codigo_far: 'FAR-0001', estado: 'EN_RUTA' };
   const askCode = actionFns.buildRecipeMessage('ASK_CODE', '');
   const askPhoto = actionFns.buildRecipeMessage('ASK_PHOTO', 'FAR-0001');
   const notPending = actionFns.buildRecipeMessage('NOT_PENDING', 'FAR-0001');
+  const notFound = actionFns.buildRecipeMessage('NOT_FOUND', 'FAR-0001');
   const success = actionFns.buildRecipeMessage('UPLOAD', 'FAR-0001');
-  const all = { ASK_CODE: askCode, ASK_PHOTO: askPhoto, NOT_PENDING: notPending, UPLOAD: success };
+  const all = { ASK_CODE: askCode, ASK_PHOTO: askPhoto, NOT_PENDING: notPending, NOT_FOUND: notFound, UPLOAD: success };
 
   const nonEmpty = Object.values(all).every((m) => typeof m === 'string' && m.trim().length > 0);
-  check('7 all four messages are non-empty', nonEmpty, JSON.stringify(all));
+  check('7 all five messages are non-empty', nonEmpty, JSON.stringify(all));
   check(
     '7b no message contains "$"',
     Object.values(all).every((m) => !m.includes('$')),
@@ -141,7 +159,7 @@ const routedOrder = { codigo_far: 'FAR-0001', estado: 'EN_RUTA' };
   const spanishMarkers = ['pedido', 'receta', 'farmacia'];
   check(
     '7g messages read as Spanish copy',
-    [askCode, askPhoto, notPending, success].every((m) => spanishMarkers.some((w) => m.toLowerCase().includes(w)))
+    [askCode, askPhoto, notPending, notFound, success].every((m) => spanishMarkers.some((w) => m.toLowerCase().includes(w)))
   );
 }
 

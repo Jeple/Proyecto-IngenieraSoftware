@@ -59,8 +59,8 @@ Columnas de `bitacora`: `timestamp`, `accion`, `codigo_far`, `medicamento_id`, `
 
 ## Brechas conocidas y pendientes
 
-- **US-09 y US-10** todavía no completan `estado_anterior`, `estado_nuevo` y `actor` en sus filas de bitácora (alineación pendiente); US-05 sí lo hace desde GitHub #7.
-- **US-09 no verifica titularidad:** hoy cualquier chat que conozca un código `#FAR-XXXX` puede adjuntar una receta a ese pedido; cubrirlo forma parte del modelo de identidad (GitHub #19).
+- **Auditoría alineada:** los flujos que cambian `ordenes.estado` (US-05, US-09, US-10 y US-20) completan `estado_anterior`, `estado_nuevo` y `actor` en su bitácora.
+- **Titularidad cubierta (GitHub #19):** la receta y la consulta de estado solo se aceptan desde el chat que creó el pedido; los mensajes de "no encontrado" son idénticos para código inexistente y chat ajeno (ver [identidad-roles.md](./identidad-roles.md)).
 - **Cancelación por el cliente:** no implementada; cuando exista, debe liberar stock exactamente una vez y registrarse como las demás transiciones.
 - **PWA (US-11):** escribe `despachos.estado_ruta` sin bitácora; su backend definitivo debe emitirla (GitHub #13).
 

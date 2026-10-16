@@ -266,6 +266,18 @@ function check(label, condition, detail) {
   );
 }
 
+// 12. bitacora audit fields (estado_anterior/estado_nuevo/actor).
+{
+  const order = makeOrder({ codigo_far: 'FAR-0012', medicamento_id: 'MED-0001', cantidad: 2 });
+  const { plan } = planFor([order]);
+  const row = plan.bitacoraRows[0];
+  check(
+    '12. bitacora carries audit fields (PENDIENTE_RECETA -> CANCELADO_EXPIRADO, sistema:cron)',
+    row.estado_anterior === 'PENDIENTE_RECETA' && row.estado_nuevo === 'CANCELADO_EXPIRADO' && row.actor === 'sistema:cron',
+    JSON.stringify(row)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 4. Summary.
 // ---------------------------------------------------------------------------
