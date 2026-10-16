@@ -32,8 +32,10 @@ if [ -d workflows ]; then
   scan "credenciales dentro de un workflow" '"credentials"[[:space:]]*:[[:space:]]*\{[[:space:]]*"[^}]'
 fi
 
-# RUT chilenos con formato real (los datos seed viven en data/seed y se excluyen)
-rut_files=$(echo "$files" | grep -v '^data/seed/' | grep -v '\.md$' || true)
+# RUT chilenos con formato real (los datos seed viven en data/seed y se excluyen).
+# Los fixtures de pruebas (scripts/test-*.mjs) usan RUT sinteticos que no son
+# datos reales de pacientes; se excluyen del escaneo de RUT.
+rut_files=$(echo "$files" | grep -v '^data/seed/' | grep -v '\.md$' | grep -v '^scripts/test-' || true)
 if [ -n "$rut_files" ] && echo "$rut_files" | xargs grep -InE '\b[0-9]{7,8}-[0-9Kk]\b' 2>/dev/null; then
   report "posible RUT fuera de data/seed"
 fi
