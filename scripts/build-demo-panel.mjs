@@ -73,7 +73,7 @@ const EVENTO_META = {
 };
 
 // Constantes de avance: actualizar al regenerar cuando cambien.
-const SUITES_VERDE = 242;
+const SUITES_VERDE = 255;
 
 export function buildPanelData({ medicamentos, pedidos, log }) {
   const totalClp = pedidos.reduce((acc, p) => acc + Math.round(Number(p.Total_CLP) || 0), 0);
