@@ -1,7 +1,17 @@
-# Secretos y entorno
+# Secretos y entorno (GitHub main + prototipo)
+# Environment files — NEVER commit secrets
 .env
+.env.*
 infra/n8n/.env
 *.local.json
+# Keep the template tracked
+!.env.example
+
+# Dependencies
+node_modules/
+
+# n8n local data (durable volume content)
+n8n_data/
 
 # Respaldos de n8n
 backups/
@@ -9,3 +19,30 @@ infra/n8n/backups/
 
 # Datos generados a mano
 data/seed/*.xlsx
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Credentials / key material
+credentials.json
+service-account*.json
+*.pem
+*.key
+
+# Secrets directory: ignore everything except the tracked placeholder
+secrets/*
+!secrets/.gitkeep
+
+# PWA build output
+pwa/dist/
+
+# IDE settings
+.idea/
+.vscode/
+
+# Agent tooling state (generated, contains absolute machine paths)
+.atl/

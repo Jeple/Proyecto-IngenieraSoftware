@@ -1,0 +1,298 @@
+{
+  "name": "US-09 Recetas por Correo",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "={{ $env.IMAP_MAILBOX }}",
+        "host": "={{ $env.IMAP_HOST }}",
+        "port": "={{ $env.IMAP_PORT }}",
+        "options": {}
+      },
+      "id": "us09n1",
+      "name": "imap_trigger",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 1.2,
+      "position": [0, 300],
+      "notes": "IMAP user/password are per-developer and configured only in n8n credentials; they are intentionally not exported here.",
+      "description": "Reviews the inbox over IMAP. Credentials (user/password) are configured per developer in n8n and never appear in this export or in code."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function extractCodeFromSubject(subject) {\n  const match = String(subject == null ? '' : subject).match(/FAR-\\d{4}/i);\n  return match ? match[0].toUpperCase() : '';\n}\nfunction extractReplyAddress(from) {\n  const raw = String(from == null ? '' : from).trim();\n  if (!raw) return '';\n  const angled = raw.match(/<([^<>]+)>/);\n  return angled ? angled[1].trim() : raw;\n}\nfunction sanitizeFilename(name) {\n  const raw = String(name == null ? '' : name).replace(/\\\\/g, '/');\n  const parts = raw.split('/').filter(function (part) { return part !== '' && part !== '.' && part !== '..'; });\n  let base = parts.length ? parts[parts.length - 1] : '';\n  base = base.replace(/\\s+/g, '_').replace(/[^A-Za-z0-9._-]/g, '').replace(/\\.{2,}/g, '.');\n  return base || 'receta-adjunta';\n}\nlet items = [];\nif (typeof $ !== 'undefined') {\n  const messages = $.input.all();\n  for (const entry of messages) {\n    const json = entry.json || {};\n    const binary = entry.binary || {};\n    const keys = Object.keys(binary);\n    const firstKey = keys.length ? keys[0] : '';\n    const attachment = firstKey ? binary[firstKey] : null;\n    const safeFilename = attachment ? sanitizeFilename(attachment.fileName || attachment.file || '') : '';\n    const item = { json: { source: 'email', reply_to: extractReplyAddress(json.from), subject: String(json.subject == null ? '' : json.subject), codigo_far: extractCodeFromSubject(json.subject), hasAttachment: Boolean(attachment), safeFilename: safeFilename } };\n    if (attachment) { item.binary = { attachment: attachment }; }\n    items.push(item);\n  }\n}\nreturn items;"
+      },
+      "id": "us09n2",
+      "name": "parse_recipe_email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "notes": "Extracts reply_to, codigo_far, hasAttachment and safeFilename; keeps the first attachment under the binary property 'attachment'. Emits an empty array when there is no message; never throws."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "us09n3",
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "notes": "Reads sheet 'ordenes' range A:M with the header row."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function classifyAction(input) {\n  const codigo = input.codigo_far;\n  const order = input.order;\n  if (!codigo) return 'ASK_CODE';\n  if (!order || String(order.estado).trim().toUpperCase() !== 'PENDIENTE_RECETA') return 'NOT_PENDING';\n  if (!input.hasAttachment) return 'ASK_ATTACHMENT';\n  return 'UPLOAD';\n}\nfunction buildRecipeMessage(action, codigoFar) {\n  const code = codigoFar ? '#' + codigoFar : '';\n  if (action === 'ASK_CODE') return 'No encontré un código de pedido (#FAR-XXXX) en el asunto de tu correo. Reenvía el mensaje con el código en el asunto.';\n  if (action === 'ASK_ATTACHMENT') return 'Tu pedido ' + code + ' está esperando la receta. Responde a este correo adjuntando la foto o el PDF de la receta.';\n  if (action === 'NOT_PENDING') return 'Tu pedido ' + code + ' no está esperando receta. Consulta su estado en la farmacia.';\n  if (action === 'SUCCESS') return 'Recibimos la receta de tu pedido ' + code + '. Ya pasa a preparación.';\n  return '';\n}\nfunction buildDriveName(codigo, timestampMs, safeFilename) {\n  return `${codigo}/${timestampMs}-${safeFilename}`;\n}\nlet items = [];\nif (typeof $ !== 'undefined') {\n  const parsedItem = $('parse_recipe_email').first();\n  const parsed = parsedItem.json;\n  const orders = $('read_ordenes').all().map(function (entry) { return entry.json; });\n  const wanted = parsed.codigo_far ? String(parsed.codigo_far).toUpperCase() : '';\n  const order = wanted ? orders.find(function (row) { return String(row.codigo_far == null ? '' : row.codigo_far).trim().toUpperCase() === wanted; }) : undefined;\n  const action = classifyAction({ codigo_far: parsed.codigo_far, hasAttachment: parsed.hasAttachment, order: order });\n  const message = action === 'UPLOAD' ? '' : buildRecipeMessage(action, parsed.codigo_far);\n  const driveName = buildDriveName(parsed.codigo_far || 'SIN-CODIGO', Date.now(), parsed.safeFilename || 'receta-adjunta');\n  const out = { json: { source: parsed.source, reply_to: parsed.reply_to, subject: 'Re: ' + parsed.subject, codigo_far: parsed.codigo_far, hasAttachment: parsed.hasAttachment, safeFilename: parsed.safeFilename, driveName: driveName, medicamento_id: order ? order.medicamento_id : '', action: action, message: message } };\n  if (parsedItem.binary) { out.binary = parsedItem.binary; }\n  items.push(out);\n}\nreturn items;"
+      },
+      "id": "us09n4",
+      "name": "build_action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "notes": "Returns one item with the classified action and the final Spanish reply for every non-UPLOAD action. Also carries subject (already 'Re: <original>'), driveName and medicamento_id downstream."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us09-if-upload",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "UPLOAD",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "us09n5",
+      "name": "if_upload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 300],
+      "notes": "true -> upload_to_drive; false -> send_email (the item already carries the final message)."
+    },
+    {
+      "parameters": {
+      "operation": "upload",
+      "name": "={{ $json.driveName }}",
+      "folderId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "={{ $env.GOOGLE_DRIVE_RECETAS_FOLDER_ID }}"
+      },
+      "binaryPropertyName": "attachment",
+      "options": {}
+    },
+    "id": "us09n6",
+    "name": "upload_to_drive",
+    "type": "n8n-nodes-base.googleDrive",
+    "typeVersion": 2.1,
+    "position": [1200, 180],
+    "notes": "Parameter choice: typeVersion 2.1 with operation=upload, folderId (resource locator, id mode) = $env.GOOGLE_DRIVE_RECETAS_FOLDER_ID, binaryPropertyName=attachment, destination name = item.driveName (from buildDriveName(codigo, Date.now(), safeFilename)). Mirrors the photo path (US-09-recetas-telegram) so both halves of US-09 share the same Drive parameter shape. OPEN RISK: parameter validation happens on first import; adjust key names if the imported node flags them. url_receta is surfaced from the upload output (webViewLink/webUrl, falling back to id-based link in update_orden).",
+    "description": "Uploads the IMAP attachment with destination name buildDriveName(codigo, timestampMs, safeFilename) and surfaces url_receta. Parameter validation happens on first import: open risk."
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $json.codigo_far }}",
+            "url_receta": "={{ $('upload_to_drive').first().json.webViewLink || $('upload_to_drive').first().json.url || ($('upload_to_drive').first().json.id ? 'https://drive.google.com/file/d/' + $('upload_to_drive').first().json.id + '/view' : '') }}",
+            "fecha_receta": "={{ $now.toISO() }}",
+            "estado": "RECETA_RECIBIDA"
+          },
+          "matchingColumns": ["codigo_far"]
+        },
+        "options": {}
+      },
+      "id": "us09n7",
+      "name": "update_orden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1440, 180],
+      "notes": "Keyed on codigo_far; writes url_receta, fecha_receta and estado=RECETA_RECIBIDA."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "bitacora"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "accion": "RECETA_RECIBIDA",
+            "codigo_far": "={{ $('build_action').first().json.codigo_far }}",
+            "medicamento_id": "={{ $('build_action').first().json.medicamento_id }}",
+            "delta_reservado": 0,
+            "detalle": "adjunto recibido por correo"
+          }
+        },
+        "options": {}
+      },
+      "id": "us09n8",
+      "name": "append_bitacora",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1680, 180],
+      "notes": "Appends bitacora row: accion=RECETA_RECIBIDA, delta_reservado=0, detalle='adjunto recibido por correo'."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function buildRecipeMessage(action, codigoFar) {\n  const code = codigoFar ? '#' + codigoFar : '';\n  if (action === 'ASK_CODE') return 'No encontré un código de pedido (#FAR-XXXX) en el asunto de tu correo. Reenvía el mensaje con el código en el asunto.';\n  if (action === 'ASK_ATTACHMENT') return 'Tu pedido ' + code + ' está esperando la receta. Responde a este correo adjuntando la foto o el PDF de la receta.';\n  if (action === 'NOT_PENDING') return 'Tu pedido ' + code + ' no está esperando receta. Consulta su estado en la farmacia.';\n  if (action === 'SUCCESS') return 'Recibimos la receta de tu pedido ' + code + '. Ya pasa a preparación.';\n  return '';\n}\nlet items = [];\nif (typeof $ !== 'undefined') {\n  const base = $('build_action').first().json;\n  items = [{ json: { source: base.source, reply_to: base.reply_to, subject: base.subject, message: buildRecipeMessage('SUCCESS', base.codigo_far) } }];\n}\nreturn items;"
+      },
+      "id": "us09n9",
+      "name": "finalize_success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1920, 180],
+      "notes": "Emits { source, reply_to, subject, message } with the success copy and subject 'Re: <original subject>' (already prefixed in build_action)."
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.IMAP_MAILBOX }}",
+        "toEmail": "={{ $json.reply_to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "us09n10",
+      "name": "send_email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2160, 300],
+      "notes": "Sends the reply by email to reply_to with subject 'Re: <original subject>'. SMTP credentials are per-developer and configured only in n8n; no credentials block is exported."
+    }
+  ],
+  "connections": {
+    "imap_trigger": {
+      "main": [
+        [
+          { "node": "parse_recipe_email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "parse_recipe_email": {
+      "main": [
+        [
+          { "node": "read_ordenes", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          { "node": "build_action", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "build_action": {
+      "main": [
+        [
+          { "node": "if_upload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "if_upload": {
+      "main": [
+        [
+          { "node": "upload_to_drive", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "send_email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "upload_to_drive": {
+      "main": [
+        [
+          { "node": "update_orden", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "update_orden": {
+      "main": [
+        [
+          { "node": "append_bitacora", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "append_bitacora": {
+      "main": [
+        [
+          { "node": "finalize_success", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "finalize_success": {
+      "main": [
+        [
+          { "node": "send_email", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "9f3c1a7e-5b64-4d21-8e0a-2c7f0a1d4b55",
+  "tags": []
+}
