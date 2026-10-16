@@ -145,3 +145,7 @@ Notas:
 - [ ] Validar con bodega los nombres de columna y los enums (`sector`, `estado`, `estado_ruta`).
 - [ ] Verificar que las cantidades de `stock_real` del catálogo oficial respetan `int ≥ 0`.
 - [ ] Eliminar las filas de ejemplo de `catalogo` e `inventario` creadas por `scripts/setup-sheets.gs` antes de cargar el catálogo oficial.
+
+## Correspondencia con el modelo inicial (US-01)
+
+El modelo inicial de 4 pestañas ([`esquema-datos.md`](./esquema-datos.md)) quedó superado por este esquema. La tabla de correspondencia y las decisiones aplicadas (expiración de 12 h, estado inicial sin receta, pestañas separadas de stock y despachos, estado `RECHAZADO`) están documentadas al final de ese documento. Los CSV de `data/seed/` siguen el modelo inicial; su conversión a este esquema está pendiente (ver la misma sección).
