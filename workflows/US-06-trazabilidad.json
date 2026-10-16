@@ -1,0 +1,200 @@
+{
+  "name": "US-06 Trazabilidad por RUT o Codigo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-trazabilidad",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "webhook_trazabilidad",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "us06-node-1",
+      "webhookId": "us06-telegram-trazabilidad"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-06 — parse_tracking_request (Telegram Bot API).\n *\n * Authorization: Telegram signs the webhook with the header\n * X-Telegram-Bot-Api-Secret-Token (looked up case-insensitively). The n8n\n * assembly passes process.env.TELEGRAM_WEBHOOK_SECRET. A mismatch emits an\n * EMPTY array — a silent drop, because responseMode onReceived already\n * returned the immediate 200 (RNF-01) before this node runs.\n * Outputs ONE item { chat_id, codigo_far?, rut? } or an EMPTY array.\n * Never throws: malformed payloads are dropped silently.\n */\nconst CODE_PATTERN = /FAR-\\d{4}/i;\nconst RUT_PATTERN = /\\b(\\d{1,2}\\.?\\d{3}\\.?\\d{3}-[\\dkK])\\b/;\n\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item { chat_id, codigo_far?, rut? }\n * or an EMPTY array (unauthorized, no message, no code and no RUT).\n */\nfunction parseTelegramUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  const text = typeof message.text === 'string' ? message.text : '';\n  const extracted = { chat_id: chat };\n  const codeMatch = text.match(CODE_PATTERN);\n  if (codeMatch) extracted.codigo_far = '#' + codeMatch[0].toUpperCase();\n  const rutMatch = text.match(RUT_PATTERN);\n  if (rutMatch) extracted.rut = rutMatch[1].replace(/\\./g, '').toUpperCase();\n  if (extracted.codigo_far || extracted.rut) return [extracted];\n  return [];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update =\n        json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        process.env.TELEGRAM_WEBHOOK_SECRET\n      );\n      if (out.length) return out; // ONE item per webhook payload\n    }\n  } catch (err) {\n    return []; // malformed payload -> drop, never throw\n  }\n  return [];\n}\n"
+      },
+      "name": "parse_tracking_request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "us06-node-2"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        0
+      ],
+      "id": "us06-node-3"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "despachos"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:F"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "name": "read_despachos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        0
+      ],
+      "id": "us06-node-4"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function extractCode(text) {\n  if (typeof text !== 'string') return null;\n  const match = text.match(/FAR-\\d{4}/i);\n  if (!match) return null;\n  return '#' + match[0].toUpperCase();\n}\n\nfunction normalizeRut(value) {\n  if (typeof value !== 'string') return null;\n  const match = value.match(/\\b(\\d{1,2}\\.?\\d{3}\\.?\\d{3}-[\\dkK])\\b/);\n  if (!match) return null;\n  return match[1].replace(/\\./g, '').toUpperCase();\n}\n\nfunction extractRut(text) {\n  if (typeof text !== 'string') return null;\n  return normalizeRut(text);\n}\n\nfunction codeNumber(codigo) {\n  const parts = String(codigo === null || codigo === undefined ? '' : codigo).match(/\\d+/g);\n  if (!parts || !parts.length) return 0;\n  return Number(parts[parts.length - 1]) || 0;\n}\n\nfunction sortOrders(list) {\n  return list.slice().sort(function (a, b) {\n    const ta = Date.parse(a && a.fecha_creacion) || 0;\n    const tb = Date.parse(b && b.fecha_creacion) || 0;\n    if (ta !== tb) return tb - ta;\n    return codeNumber(b.codigo_far) - codeNumber(a.codigo_far);\n  });\n}\n\nfunction findOrder(request, catalog, ownerChatId) {\n  if (!request || typeof request !== 'object' || !Array.isArray(catalog)) return null;\n  const rows = catalog.filter(function (row) { return row && typeof row === 'object'; });\n  const restrictOwner = ownerChatId !== undefined && ownerChatId !== null;\n  const owner = restrictOwner ? String(ownerChatId) : '';\n  const ownedRows = restrictOwner\n    ? rows.filter(function (row) {\n        const tel = row.telefono === null || row.telefono === undefined ? '' : String(row.telefono);\n        return tel !== '' && tel === owner;\n      })\n    : rows;\n  const code = extractCode(typeof request.codigo_far === 'string' ? request.codigo_far : '');\n  if (code) {\n    const wanted = code.replace(/^#/, '');\n    const codeMatches = ownedRows.filter(function (row) {\n      const raw = row.codigo_far === null || row.codigo_far === undefined ? '' : String(row.codigo_far);\n      return raw.toUpperCase().replace(/^#/, '') === wanted;\n    });\n    return codeMatches.length ? sortOrders(codeMatches)[0] : null;\n  }\n  const rut = normalizeRut(typeof request.rut === 'string' ? request.rut : '');\n  if (!rut) return null;\n  const rutMatches = ownedRows.filter(function (row) {\n    const raw = row.rut === null || row.rut === undefined ? '' : String(row.rut);\n    return normalizeRut(raw) === rut;\n  });\n  return rutMatches.length ? sortOrders(rutMatches)[0] : null;\n}\n\nfunction statusMessage(order, dispatch) {\n  const rawCode = order && order.codigo_far !== null && order.codigo_far !== undefined ? String(order.codigo_far) : '';\n  const code = extractCode(rawCode) || ('#' + rawCode);\n  const estado = order && order.estado !== null && order.estado !== undefined ? String(order.estado) : '';\n  let message;\n  if (estado === 'PENDIENTE_RECETA') {\n    message = 'Tu pedido ' + code + ' está esperando la foto de tu receta. Tienes 12 horas para enviarla.';\n  } else if (estado === 'RECETA_RECIBIDA') {\n    message = 'Recibimos la receta de tu pedido ' + code + '. Ya pasa a preparación.';\n  } else if (estado === 'EN_PREPARACION') {\n    message = 'Tu pedido ' + code + ' está en preparación en bodega.';\n  } else if (estado === 'EN_RUTA') {\n    message = 'Tu pedido ' + code + ' va en camino.';\n    const eta = dispatch ? Number(dispatch.eta_minutos) : NaN;\n    if (Number.isFinite(eta) && eta > 0) {\n      message += ' Llegada estimada: ' + eta + ' minutos.';\n    }\n  } else if (estado === 'ENTREGADO') {\n    message = 'Tu pedido ' + code + ' fue entregado.';\n  } else if (estado === 'CANCELADO_EXPIRADO') {\n    message = 'Tu pedido ' + code + ' fue cancelado por falta de receta después de 12 horas.';\n  } else {\n    message = 'Tu pedido ' + code + ' está en revisión. Consulta en la farmacia.';\n  }\n  if (dispatch && dispatch.sector) {\n    message += ' Sector: ' + dispatch.sector + '.';\n  }\n  return message;\n}\n\nfunction buildTrackingReply(request, catalog, dispatches) {\n  if (!request || typeof request !== 'object') return null;\n  const codigo = extractCode(typeof request.codigo_far === 'string' ? request.codigo_far : '');\n  const rut = normalizeRut(typeof request.rut === 'string' ? request.rut : '');\n  if (!codigo && !rut) return null;\n  const chatId = request.chat_id || '';\n  const order = findOrder(request, catalog, chatId);\n  if (!order) {\n    return { chat_id: chatId, message: 'No encontré ese pedido. Revisa el código #FAR-XXXX o tu RUT e inténtalo de nuevo.' };\n  }\n  const wanted = order.codigo_far === null || order.codigo_far === undefined ? '' : String(order.codigo_far).toUpperCase().replace(/^#/, '');\n  const rows = Array.isArray(dispatches) ? dispatches : [];\n  let dispatch = null;\n  for (let i = 0; i < rows.length; i++) {\n    const row = rows[i];\n    const rowCode = row && row.codigo_far !== null && row.codigo_far !== undefined ? String(row.codigo_far).toUpperCase().replace(/^#/, '') : '';\n    if (rowCode === wanted) {\n      dispatch = row;\n      break;\n    }\n  }\n  return { chat_id: chatId, message: statusMessage(order, dispatch) };\n}\n\nif (typeof $ !== 'undefined') {\n  const request = $('parse_tracking_request').first().json;\n  const catalog = $('read_ordenes').all();\n  const dispatches = $('read_despachos').all();\n  const reply = buildTrackingReply(request, catalog, dispatches);\n  return reply ? [reply] : [];\n}"
+      },
+      "name": "build_tracking_reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "id": "us06-node-5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "name": "send_telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "us06-node-6",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "webhook_trazabilidad": {
+      "main": [
+        [
+          {
+            "node": "parse_tracking_request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_tracking_request": {
+      "main": [
+        [
+          {
+            "node": "read_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          {
+            "node": "read_despachos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_despachos": {
+      "main": [
+        [
+          {
+            "node": "build_tracking_reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "build_tracking_reply": {
+      "main": [
+        [
+          {
+            "node": "send_telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "7f3c1a9e-5b2d-4e8f-9a1c-2d4e6f8a0b13",
+  "tags": []
+}

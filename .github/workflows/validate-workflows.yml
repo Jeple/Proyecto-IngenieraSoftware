@@ -1,0 +1,109 @@
+name: Validate workflows
+
+on:
+  push:
+    paths:
+      - "workflows/**"
+      - "scripts/**"
+      - "pwa/**"
+      - ".github/workflows/validate-workflows.yml"
+  pull_request:
+    paths:
+      - "workflows/**"
+      - "scripts/**"
+      - "pwa/**"
+      - ".github/workflows/validate-workflows.yml"
+
+jobs:
+  validate-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Dependency-free: uses only Node.js (preinstalled on ubuntu-latest).
+      - name: Validate workflow JSON files
+        run: |
+          node -e '
+            const fs = require("fs");
+            const dir = "workflows";
+            if (!fs.existsSync(dir)) {
+              console.log("workflows/ directory not found; nothing to validate.");
+              process.exit(0);
+            }
+            const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+            let invalid = false;
+            for (const f of files) {
+              const path = dir + "/" + f;
+              const raw = fs.readFileSync(path, "utf8");
+              // Windows editors may prepend a UTF-8 BOM, which JSON.parse rejects.
+              if (raw.charCodeAt(0) === 0xfeff) {
+                console.error("Invalid JSON in workflows/" + f + ": file starts with a UTF-8 BOM. Re-save as UTF-8 without BOM.");
+                invalid = true;
+                continue;
+              }
+              try {
+                JSON.parse(raw);
+                console.log("OK " + f);
+              } catch (e) {
+                console.error("Invalid JSON in workflows/" + f + ": " + e.message);
+                invalid = true;
+              }
+            }
+            if (invalid) process.exit(1);
+          '
+
+      # US-04: fuzzy stock/price lookup tests (Node >= 18, zero deps).
+      # Exits 1 if any assertion fails.
+      - name: Run US-04 fuzzy match tests
+        run: node scripts/test-fuzzy-match.mjs
+
+      # US-05: reservation tests + drift guard between the US-04 and US-05
+      # fuzzy matcher copies (Node >= 18, zero deps). Exits 1 on failure.
+      - name: Run US-05 reservation tests
+        run: node scripts/test-reserva.mjs
+
+      # US-06: delivery tracking by RUT or order code (RF-07).
+      - name: Run US-06 tracking tests
+        run: node scripts/test-trazabilidad.mjs
+
+      # US-10: 12-hour recipe expiry cron (RF-06).
+      - name: Run US-10 expiry cron tests
+        run: node scripts/test-cron-expiracion.mjs
+
+      # US-20: pharmacist approval of recipes (aprobar/rechazar over Telegram).
+      - name: Run US-20 pharmacist approval tests
+        run: node scripts/test-aprobacion.mjs
+
+      # US-21: workflow failure alerts (Error Trigger -> Telegram admin).
+      - name: Run US-21 alert tests
+        run: node scripts/test-alertas.mjs
+
+      # Panel de demostración: consistencia con los datos sintéticos del repo.
+      - name: Run demo panel consistency test
+        run: node scripts/test-panel.mjs
+
+      # Mapa de workflows: consistencia con los JSON reales.
+      - name: Run workflow map consistency test
+        run: node scripts/test-mapa.mjs
+
+      # US-11: driver PWA pure functions (no DOM emulation, zero deps).
+      - name: Run US-11 driver PWA tests
+        run: node pwa/test/pwa.test.mjs
+
+      # US-09 / RF-05: recipe ingestion over Telegram (photo + #FAR-XXXX caption).
+      - name: Run US-09 Telegram recipe tests
+        run: node scripts/test-recetas-telegram.mjs
+
+      # US-09 / RF-05: recipe ingestion over IMAP email (subject + #FAR-XXXX).
+      - name: Run US-09 email recipe tests
+        run: node scripts/test-recetas-email.mjs
+
+      - name: Warn when workflows/ has no JSON files yet
+        run: |
+          count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::workflows/ contains no JSON files yet. Export them from n8n as US-XX-<slug>.json."
+          else
+            echo "Found $count workflow JSON file(s)."
+          fi
