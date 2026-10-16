@@ -16,7 +16,7 @@ El script valida el stock reservado, IDs únicos, FKs, estados y DV de RUT antes
    - Ubicación de importación: **Reemplazar hoja actual**.
    - Separador: coma.
    - **Desmarcar** "Convertir texto en números, fechas y fórmulas" (conserva el RUT, el teléfono y el `#` del ID).
-3. En `Medicamentos`, agregar la columna `Stock_Neto` (columna L) con `=I2-J2` y arrastrarla hasta la última fila.
+3. En `Medicamentos`, agregar la columna `Stock_Disponible` (columna L) con `=I2-J2` y arrastrarla hasta la última fila.
 4. En `Pedidos`, aplicar **Datos → Validación de datos → Menú desplegable** a la columna `Estado` con:
    `PENDIENTE_RECETA, RECETA_RECIBIDA, EN_PREPARACION, EN_RUTA, ENTREGADO, CANCELADO_EXPIRADO`.
 
