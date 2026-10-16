@@ -1,0 +1,11 @@
+# Secretos y entorno
+.env
+infra/n8n/.env
+*.local.json
+
+# Respaldos de n8n
+backups/
+infra/n8n/backups/
+
+# Datos generados a mano
+data/seed/*.xlsx
