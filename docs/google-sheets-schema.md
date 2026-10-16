@@ -97,6 +97,7 @@ Notas:
 
 - Los sectores replican los tres macrosectores de mayor demanda del informe de Inception.
 - `estado_ruta` es la vista logística del conductor; el estado comercial del pedido vive en `ordenes.estado`.
+- La fila se crea al confirmar la reserva (US-05) con `estado_ruta` `PENDIENTE`, la dirección y el sector capturados en el mensaje; una dirección fuera de cobertura se rechaza antes de reservar (GitHub #7).
 
 ## Hoja `bitacora`
 
@@ -124,6 +125,7 @@ Notas:
 |---|---|---|
 | Saldo neto y quiebre | `stock_neto = stock_real - stock_reservado`. Si el saldo es 0, se informa el quiebre y se sugieren bioequivalentes: filas de `catalogo` cuyo `bioequivalente_de` apunta al `medicamento_id` consultado (búsqueda inversa), solo con `activo = SI` | RF-02 |
 | Reserva inmediata | Toda orden confirmada incrementa `stock_reservado` de forma inmediata y registra el movimiento en `bitacora` | RF-04 |
+| Datos mínimos de reserva | La reserva exige RUT, dirección y sector (Peñalolén Alto, Peñalolén Nuevo o San Luis) además del producto y la cantidad; sin esos datos, o fuera de cobertura, se rechaza con un mensaje guía y no se escribe nada. Un reenvío idéntico del mismo chat dentro de 2 minutos devuelve la reserva existente | US-05 (GitHub #7) |
 | Expiración a 12 horas | Un cron horario cancela las órdenes `PENDIENTE_RECETA` con `fecha_expiracion` vencida: estado `CANCELADO_EXPIRADO`, decremento de `stock_reservado`, registro en `bitacora` y notificación al usuario por Telegram | RF-06 |
 | Aprobación farmacéutica | `RECETA_RECIBIDA` → `EN_PREPARACION` solo con aprobación explícita de un farmacéutico autorizado; `rechazar` pasa la orden a `RECHAZADO` y libera `stock_reservado` una sola vez. Los comandos llegan por Telegram y el chat debe estar en `TELEGRAM_PHARMACIST_CHAT_IDS` | US-20 (GitHub #18) |
 | Estados vigentes | Los estados válidos de una orden son exactamente la enumeración de `ordenes.estado`; RF-07 los devuelve al consultar por RUT o `#FAR-XXXX` | RF-07 |

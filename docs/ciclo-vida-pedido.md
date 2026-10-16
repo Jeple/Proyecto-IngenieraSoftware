@@ -29,8 +29,8 @@ Exactamente la enumeración de `ordenes.estado` definida en [`google-sheets-sche
 
 | # | Transición | Actor | Precondición | Efecto en stock | Auditoría (bitacora) |
 |---|---|---|---|---|---|
-| 1 | Alta → `PENDIENTE_RECETA` | Cliente (US-05) | `requiere_receta = SI` | +`cantidad` reservada | `RESERVA_ALTA` |
-| 2 | Alta → `EN_PREPARACION` | Cliente (US-05) | `requiere_receta = NO` | +`cantidad` reservada | `RESERVA_ALTA` |
+| 1 | Alta → `PENDIENTE_RECETA` | Cliente (US-05) | `requiere_receta = SI`; RUT, dirección y sector válidos; sin duplicado reciente | +`cantidad` reservada | `RESERVA_ALTA` |
+| 2 | Alta → `EN_PREPARACION` | Cliente (US-05) | `requiere_receta = NO`; RUT, dirección y sector válidos; sin duplicado reciente | +`cantidad` reservada | `RESERVA_ALTA` |
 | 3 | `PENDIENTE_RECETA` → `RECETA_RECIBIDA` | Cliente (US-09, foto por Telegram) | Código `#FAR-XXXX` válido; archivo en Google Drive | Sin cambio | `RECETA_RECIBIDA` |
 | 4 | `RECETA_RECIBIDA` → `EN_PREPARACION` | Farmacéutico (US-20) | Chat autorizado + comando `aprobar FAR-XXXX` | Sin cambio | `RECETA_APROBADA` |
 | 5 | `RECETA_RECIBIDA` → `RECHAZADO` | Farmacéutico (US-20) | Chat autorizado + comando `rechazar FAR-XXXX [motivo]` | −`cantidad` (una sola vez) | `RECETA_RECHAZADA` |
@@ -48,6 +48,7 @@ Transiciones **prohibidas** (se rechazan sin tocar el pedido ni el stock):
 
 - **El estado de origen es la guarda:** cada transición valida primero el estado actual del pedido (US-20 y US-10). Un comando repetido, un reintento o una reentrega de Telegram no produce escrituras ni libera stock dos veces.
 - **El stock nunca queda negativo:** las liberaciones aplican `max(0, stock_reservado − cantidad)`.
+- **Duplicados recientes:** un reenvío idéntico del mismo chat (mismo medicamento y cantidad dentro de 2 minutos) devuelve la reserva existente y no escribe nada (US-05).
 - **Una operación, una fila:** cada cambio de estado con efecto en stock escribe su movimiento en `bitacora` en la misma ejecución.
 
 ## Trazabilidad mínima
@@ -58,7 +59,7 @@ Columnas de `bitacora`: `timestamp`, `accion`, `codigo_far`, `medicamento_id`, `
 
 ## Brechas conocidas y pendientes
 
-- **US-05, US-09 y US-10** todavía no completan `estado_anterior`, `estado_nuevo` y `actor` en sus filas de bitácora (alineación pendiente).
+- **US-09 y US-10** todavía no completan `estado_anterior`, `estado_nuevo` y `actor` en sus filas de bitácora (alineación pendiente); US-05 sí lo hace desde GitHub #7.
 - **US-09 no verifica titularidad:** hoy cualquier chat que conozca un código `#FAR-XXXX` puede adjuntar una receta a ese pedido; cubrirlo forma parte del modelo de identidad (GitHub #19).
 - **Cancelación por el cliente:** no implementada; cuando exista, debe liberar stock exactamente una vez y registrarse como las demás transiciones.
 - **PWA (US-11):** escribe `despachos.estado_ruta` sin bitácora; su backend definitivo debe emitirla (GitHub #13).

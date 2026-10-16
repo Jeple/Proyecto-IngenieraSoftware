@@ -134,7 +134,7 @@ check('3e only enum states are produced', ['PENDIENTE_RECETA', 'EN_PREPARACION']
 
 // 4. order payload: stock increment + total price ---------------------------------
 const commit = api.evaluateReservation(
-  { chat_id: '56987654321', query: 'losartan 50', quantity: 3, rut: '12.345.678-5' },
+  { chat_id: '56987654321', query: 'losartan 50', quantity: 3, rut: '12.345.678-5', direccion: 'Av. Los Aromas 1234', sector: 'Peñalolén Alto' },
   catalogo, inventario, []
 );
 check('4a decision COMMIT', commit.decision === 'COMMIT', JSON.stringify(commit).slice(0, 200));
@@ -257,6 +257,57 @@ check(
   parseApi.parseTelegramUpdate(tgUpdate, { 'X-Telegram-Bot-Api-Secret-Token': 'wrong' }, SECRET).length === 0 &&
     parseApi.parseTelegramUpdate(tgUpdate, {}, SECRET).length === 0
 );
+
+// 11. GitHub #7: delivery capture, coverage and duplicate guard --------------------
+const fullParsed = api.parseReservationText(
+  'reservar losartan 50 x2 rut 1.234.567-8, av. los aromas 1234, Peñalolén Alto'
+);
+check('11a full format parses query/direccion/sector', fullParsed.query === 'losartan 50' && fullParsed.direccion === 'av. los aromas 1234' && fullParsed.sector === 'Peñalolén Alto' && fullParsed.quantity === 2, JSON.stringify(fullParsed));
+const copyFull = parseApi.parseReservationText(
+  'reservar losartan 50 x2 rut 1.234.567-8, av. los aromas 1234, Peñalolén Alto'
+);
+check('11b parse copies agree on the full format', JSON.stringify(fullParsed) === JSON.stringify(copyFull));
+const noAccent = api.parseReservationText('reservar omeprazol 20, pasaje el roble 5, penalolen nuevo');
+check('11c sector matched without accents/case', noAccent.sector === 'Peñalolén Nuevo', noAccent.sector);
+const sanLuis = api.parseReservationText('reservar omeprazol 20, av. san luis 100, SAN LUIS');
+check('11d San Luis sector matched', sanLuis.sector === 'San Luis', sanLuis.sector);
+const otroExplicit = api.parseReservationText('reservar omeprazole 20, av. x 100, otro');
+check('11e explicit "otro" -> sector Otro', otroExplicit.sector === 'Otro', otroExplicit.sector);
+const otraComuna = api.parseReservationText('reservar omeprazole 20, av. irarrazaval 100, ñuñoa');
+check('11f another comuna -> sector Otro (out of coverage)', otraComuna.sector === 'Otro', otraComuna.sector);
+const sectorFirst = api.parseReservationText('reservar omeprazole 20, peñalolén alto, av. los aromas 1234');
+check('11g sector before address still captured', sectorFirst.sector === 'Peñalolén Alto' && sectorFirst.direccion === 'av. los aromas 1234', JSON.stringify(sectorFirst));
+const sectorOnlyInQuery = api.parseReservationText('reservar paracetamol peñalolén alto');
+check('11h single segment with sector -> query cleaned', sectorOnlyInQuery.query === 'paracetamol' && sectorOnlyInQuery.sector === 'Peñalolén Alto', JSON.stringify(sectorOnlyInQuery));
+
+const baseParsed = { chat_id: '56987654321', query: 'losartan 50', quantity: 2, rut: '1.234.567-8', direccion: 'av. los aromas 1234', sector: 'Peñalolén Alto' };
+const okCommit = api.evaluateReservation(baseParsed, catalogo, inventario, []);
+check('11i full data -> COMMIT with despacho row PENDIENTE', okCommit.decision === 'COMMIT' && okCommit.despacho_row && okCommit.despacho_row.sector === 'Peñalolén Alto' && okCommit.despacho_row.direccion === 'av. los aromas 1234' && okCommit.despacho_row.estado_ruta === 'PENDIENTE' && okCommit.despacho_row.codigo_far === okCommit.code, JSON.stringify(okCommit.despacho_row));
+check('11j bitacora audit fields populated (US-20 columns)', okCommit.bitacora_row.estado_anterior === '' && okCommit.bitacora_row.estado_nuevo === 'PENDIENTE_RECETA' && okCommit.bitacora_row.actor === 'cliente:56987654321', JSON.stringify(okCommit.bitacora_row));
+check('11k bitacora detail leaks neither RUT nor address', !okCommit.bitacora_row.detalle.includes('1.234.567-8') && !okCommit.bitacora_row.detalle.includes('aromas'), okCommit.bitacora_row.detalle);
+
+const noAddr = api.evaluateReservation({ ...baseParsed, direccion: '' }, catalogo, inventario, []);
+check('11l missing address -> REJECT with format guidance, no writes', noAddr.decision === 'REJECT' && noAddr.message.includes('dirección') && noAddr.message.includes('Formato') && noAddr.order_row === null && noAddr.despacho_row === null, noAddr.message);
+const noSector = api.evaluateReservation({ ...baseParsed, sector: '' }, catalogo, inventario, []);
+check('11m missing sector -> REJECT listing valid sectors', noSector.decision === 'REJECT' && noSector.message.includes('San Luis') && noSector.message.includes('sector'), noSector.message);
+const outCoverage = api.evaluateReservation({ ...baseParsed, sector: 'Otro' }, catalogo, inventario, []);
+check('11n out of coverage -> REJECT, no writes', outCoverage.decision === 'REJECT' && outCoverage.message.includes('cubre solo') && outCoverage.inventory_row === null, outCoverage.message);
+const noRut = api.evaluateReservation({ ...baseParsed, rut: '' }, catalogo, inventario, []);
+check('11o missing RUT -> REJECT asking for it', noRut.decision === 'REJECT' && noRut.message.includes('RUT'), noRut.message);
+
+const recentOrder = {
+  codigo_far: 'FAR-0042', fecha_creacion: new Date(Date.now() - 30000).toISOString(),
+  telefono: '56987654321', medicamento_id: 'MED-0002', cantidad: 2, estado: 'EN_PREPARACION'
+};
+const dup = api.evaluateReservation(baseParsed, catalogo, inventario, [recentOrder]);
+check('11p duplicate within window -> DUPLICATE with existing code, no writes', dup.decision === 'DUPLICATE' && dup.code === 'FAR-0042' && dup.message.includes('#FAR-0042') && dup.order_row === null && dup.inventory_row === null && dup.bitacora_row === null, JSON.stringify(dup).slice(0, 160));
+const oldOrder = { ...recentOrder, fecha_creacion: new Date(Date.now() - 10 * 60 * 1000).toISOString() };
+const notDup = api.evaluateReservation(baseParsed, catalogo, inventario, [oldOrder]);
+check('11q duplicate outside window -> COMMIT', notDup.decision === 'COMMIT', notDup.decision);
+const diffQty = api.evaluateReservation({ ...baseParsed, quantity: 3 }, catalogo, inventario, [recentOrder]);
+check('11r different quantity -> COMMIT (not duplicate)', diffQty.decision === 'COMMIT', diffQty.decision);
+const otherChat = api.evaluateReservation({ ...baseParsed, chat_id: '56900000000' }, catalogo, inventario, [recentOrder]);
+check('11s different chat -> COMMIT (not duplicate)', otherChat.decision === 'COMMIT', otherChat.decision);
 
 console.log('----------------------------------------');
 console.log(`SUMMARY: ${passed} passed, ${failed} failed, ${passed + failed} total`);

@@ -59,6 +59,9 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 
 - **Router de Telegram:** el router de intenciones de Telegram despachará los mensajes de tipo *reserva* al webhook de este workflow (`POST telegram-reserva`). Hasta que ese router exista, el webhook recibe las peticiones directamente.
 - **Matcher difuso duplicado a propósito:** n8n no puede importar JavaScript local sin habilitar la *allowlist* de carpetas, por lo que `US-04-consulta-stock.json` y `US-05-reserva.json` cada uno lleva su propia copia del matcher. `node scripts/test-reserva.mjs` actúa como *drift guard*: ejecuta la misma lista de consultas en ambas copias y falla si cambia un veredicto o el `medicamento_id` matcheado.
+- **Entrega (GitHub #7):** la reserva exige el bloque de entrega separado por comas — `[producto], [dirección], [sector]` — con sector tolerante a acentos (Peñalolén Alto, Peñalolén Nuevo o San Luis). Sin datos o fuera de cobertura se rechaza con mensaje guía; con datos válidos, `append_despacho` crea la fila `PENDIENTE` en `despachos`.
+- **Duplicados:** un reenvío idéntico del mismo chat (mismo medicamento y cantidad dentro de 2 minutos) devuelve la reserva existente y no escribe nada.
+- **Auditoría:** la bitácora de la reserva incluye `estado_anterior`, `estado_nuevo` y `actor` (`cliente:<chat_id>`).
 - **Prueba local:** `node scripts/test-reserva.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta junto a las pruebas de US-04.
 
 ### Notas sobre US-06 (`US-06-trazabilidad.json`)
