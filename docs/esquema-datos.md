@@ -17,7 +17,7 @@ Una fila por presentación y marca.
 | Precio_CLP | Entero. |
 | Stock_Real | Unidades físicas en bodega. |
 | Stock_Reservado | Unidades comprometidas por pedidos vivos. |
-| Stock_Neto | **Fórmula en Sheets** `=Stock_Real-Stock_Reservado`. No está en el CSV. |
+| Stock_Disponible | **Fórmula en Sheets** `=Stock_Real-Stock_Reservado`. No está en el CSV. |
 | Activo | `SI` / `NO`. Descontinuar sin borrar historial. |
 
 ## Pedidos (cabecera)
@@ -58,7 +58,7 @@ Una fila por presentación y marca.
 | CONFIRMACION_ENTREGA | `Real -= n` y `Reservado -= n`. |
 | LIBERACION_CANCELACION / LIBERACION_EXPIRACION | `Reservado -= n`. |
 
-Invariante: `Stock_Reservado` = suma de cantidades en pedidos en estado PENDIENTE_RECETA, RECETA_RECIBIDA, EN_PREPARACION o EN_RUTA, y `Stock_Neto >= 0`.
+Invariante: `Stock_Reservado` = suma de cantidades en pedidos en estado PENDIENTE_RECETA, RECETA_RECIBIDA, EN_PREPARACION o EN_RUTA, y `Stock_Disponible >= 0`.
 
 La atomicidad (bloqueo con `LockService` de Apps Script) se implementa en una US posterior.
 
@@ -71,3 +71,22 @@ PENDIENTE_RECETA → RECETA_RECIBIDA → EN_PREPARACION → EN_RUTA → ENTREGAD
 - Pedidos sin medicamentos con receta nacen en `RECETA_RECIBIDA` (con `URL_Receta` vacía).
 - Terminales: `ENTREGADO`, `CANCELADO_EXPIRADO`.
 - La cancelación solo es posible desde `PENDIENTE_RECETA` y `RECETA_RECIBIDA`.
+
+## Privacidad
+| Hoja | Datos personales | Criterio |
+|---|---|---|
+| Pedidos | RUT, Telefono, Direccion, URL_Receta | Mínimo necesario para validar, contactar y entregar. |
+| Items_Pedido | Medicamentos por pedido | Unido al RUT permite inferir una condición de salud: restringir el acceso. |
+| Log_Reservas | Ninguno | Solo IDs y cantidades. Sin RUT, teléfono, dirección ni receta. |
+| Medicamentos | Ninguno | Catálogo y stock. |
+
+- La receta se guarda solo como URL, nunca su contenido ni el diagnóstico.
+- Datos seed ficticios: RUT con DV válido, marcas inventadas y URLs `example.org`.
+- La planilla debe compartirse solo con el equipo (Editor). Nunca con "cualquiera con el enlace".
+
+## Decisiones de diseño
+- **Items_Pedido separada de Pedidos:** un pedido puede tener varios medicamentos.
+- **Precio congelado en el ítem:** un cambio posterior de precio no altera pedidos existentes.
+- **Log_Reservas append-only:** auditoría y reconstrucción del stock.
+- **Stock_Disponible como fórmula:** una sola fuente de verdad, no se guarda en el CSV.
+- **Cada dosis es una fila:** evita mezclar presentaciones al reservar stock.
