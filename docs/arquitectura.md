@@ -94,8 +94,8 @@ El canal de texto se migró de WhatsApp Cloud API a Telegram Bot API en el Sprin
 
 El agente de voz (US-08, RNF-02) no aporta lógica de negocio propia: Vapi invoca por HTTP los webhooks de `consulta-stock` y `reserva`. Los flujos de escritura comparten la cola secuencial descrita en RNF-04.
 
-## Siguientes pasos
+## Estado y siguientes pasos
 
-1. Validar el modelo de datos con el personal de bodega (US-01) según [`docs/google-sheets-schema.md`](google-sheets-schema.md).
-2. Implementar los workflows de Sprint 1 y versionarlos bajo la convención de [`workflows/README.md`](../workflows/README.md).
-3. Resolver la decisión abierta **D-01** antes de implementar `reserva` (ver [`docs/google-sheets-schema.md`](google-sheets-schema.md)).
+- Workflows de Sprint 1 y 2 implementados y versionados bajo la convención de [`workflows/README.md`](../workflows/README.md).
+- **D-01 resuelta** el 16-oct-2026 (ver [`docs/google-sheets-schema.md`](google-sheets-schema.md)).
+- Pendientes: validación formal con bodega de nombres de columna y enums (checklist en [`docs/google-sheets-schema.md`](google-sheets-schema.md)), prueba de punta a punta en el entorno real (ver [`docs/guia-pruebas-e2e.md`](guia-pruebas-e2e.md)) y el adaptador de WhatsApp Business (GitHub #24).
