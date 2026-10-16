@@ -47,7 +47,7 @@ function makeOrder(overrides = {}) {
     codigo_far: 'FAR-0001',
     fecha_creacion: '2026-10-01T09:00:00.000Z',
     rut: '12.345.678-5',
-    telefono: '+56912345678',
+    telefono: '56911111111',
     nombre_cliente: 'María Rojas',
     medicamento_id: 'MED-4410',
     cantidad: 3,
@@ -299,6 +299,72 @@ check('14. update without message -> EMPTY; unauthorized -> EMPTY', () => {
     parseApi.parseTelegramUpdate({ update_id: 1 }, goodHeaders, SECRET).length === 0 &&
     parseApi.parseTelegramUpdate(update, { 'X-Telegram-Bot-Api-Secret-Token': 'wrong' }, SECRET).length === 0 &&
     parseApi.parseTelegramUpdate(update, {}, SECRET).length === 0
+  );
+});
+
+// 15. Titularidad: un tercero no puede consultar por código; recibe el mismo
+// mensaje neutro que un pedido inexistente, sin filtrar datos.
+check('15. chat de tercero por código -> no encontrado, sin filtrar datos', () => {
+  const reply = buildTrackingReply(
+    { chat_id: '56999999999', codigo_far: '#FAR-0001' },
+    catalog,
+    noDispatches
+  );
+  return Boolean(reply) && reply.message === NOT_FOUND && reply.chat_id === '56999999999';
+});
+
+// 16. Titularidad: un tercero tampoco puede consultar por RUT.
+check('16. chat de tercero por RUT -> no encontrado', () => {
+  const reply = buildTrackingReply(
+    { chat_id: '56999999999', rut: '12.345.678-5' },
+    catalog,
+    noDispatches
+  );
+  return Boolean(reply) && reply.message === NOT_FOUND;
+});
+
+// 17. El titular por RUT sigue funcionando; un pedido sin teléfono (fila
+// legada) no es consultable.
+check('17. titular por RUT OK; pedido sin teléfono -> no encontrado', () => {
+  const byRut = buildTrackingReply(
+    { chat_id: '56911111111', rut: '12.345.678-5' },
+    catalog,
+    noDispatches
+  );
+  const legacy = buildTrackingReply(
+    { chat_id: '56911111111', codigo_far: '#FAR-0002' },
+    [makeOrder({ codigo_far: 'FAR-0002', telefono: '' })],
+    noDispatches
+  );
+  return (
+    Boolean(byRut) &&
+    byRut.message.includes('#FAR-0001') &&
+    Boolean(legacy) &&
+    legacy.message === NOT_FOUND
+  );
+});
+
+// 18. Mismo RUT en chats distintos: cada titular ve solo su pedido más reciente.
+check('18. mismo RUT, chats distintos -> cada uno ve el suyo', () => {
+  const mine = makeOrder({
+    codigo_far: 'FAR-0002',
+    telefono: '56911111111',
+    fecha_creacion: '2026-10-01T08:00:00.000Z',
+  });
+  const otherNewer = makeOrder({
+    codigo_far: 'FAR-0009',
+    telefono: '56999999999',
+    fecha_creacion: '2026-10-05T08:00:00.000Z',
+  });
+  const reply = buildTrackingReply(
+    { chat_id: '56911111111', rut: '12.345.678-5' },
+    [mine, otherNewer],
+    noDispatches
+  );
+  return (
+    Boolean(reply) &&
+    reply.message.includes('#FAR-0002') &&
+    !reply.message.includes('#FAR-0009')
   );
 });
 
