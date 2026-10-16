@@ -1,0 +1,39 @@
+{
+  "name": "Smoke test",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "health",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5b7c1a40-0000-4000-8000-000000000001",
+      "name": "Webhook health",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "5b7c1a40-0000-4000-8000-0000000000a1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"ok\" } }}",
+        "options": {}
+      },
+      "id": "5b7c1a40-0000-4000-8000-000000000002",
+      "name": "Responder ok",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [240, 0]
+    }
+  ],
+  "connections": {
+    "Webhook health": {
+      "main": [[{ "node": "Responder ok", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {},
+  "id": "smoke-test-000001",
+  "active": false
+}

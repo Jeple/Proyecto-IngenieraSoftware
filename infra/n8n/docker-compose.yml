@@ -1,0 +1,34 @@
+# n8n para desarrollo. El túnel se agrega con un archivo de override:
+#   docker compose -f docker-compose.yml -f docker-compose.quick.yml  up -d
+#   docker compose -f docker-compose.yml -f docker-compose.named.yml  up -d
+name: farmacia-n8n
+
+services:
+  n8n:
+    image: n8nio/n8n:${N8N_VERSION:-2.44.2}
+    restart: unless-stopped
+    ports:
+      # Solo loopback: la entrada desde internet pasa por el túnel.
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Define N8N_ENCRYPTION_KEY en .env}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_PORT: "5678"
+      WEBHOOK_URL: ${WEBHOOK_URL:-http://localhost:5678/}
+      N8N_PROXY_HOPS: "1"
+      GENERIC_TIMEZONE: America/Santiago
+      TZ: America/Santiago
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ../../workflows:/workflows:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  n8n_data:

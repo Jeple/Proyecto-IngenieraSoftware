@@ -1,0 +1,12 @@
+# Named Tunnel: hostname fijo en un dominio propio en Cloudflare.
+# Requiere CLOUDFLARE_TUNNEL_TOKEN en .env y un Public Hostname -> http://n8n:5678.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-2026.10.1}
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Define CLOUDFLARE_TUNNEL_TOKEN en .env}
+    depends_on:
+      n8n:
+        condition: service_healthy

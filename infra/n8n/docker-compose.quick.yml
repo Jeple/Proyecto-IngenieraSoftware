@@ -1,0 +1,10 @@
+# Quick Tunnel: URL aleatoria *.trycloudflare.com que cambia en cada reinicio.
+# Solo para pruebas. Ver docs/n8n-despliegue.md.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-2026.10.1}
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://n8n:5678
+    depends_on:
+      n8n:
+        condition: service_healthy
