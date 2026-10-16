@@ -93,13 +93,28 @@ docker compose cp n8n:/home/node/.n8n/backup-credentials.json backups/
 
 ## Recuperación
 
-1. Levantar n8n con la **misma** `N8N_ENCRYPTION_KEY`.
-2. `docker compose cp backups/backup-workflows.json n8n:/home/node/.n8n/`
-3. `docker compose exec n8n n8n import:workflow --input=/home/node/.n8n/backup-workflows.json`
-4. Igual con `import:credentials`.
-5. Reactivar los workflows y probar `/webhook/health`.
+Probado: con el volumen borrado (`down -v`), se recuperaron workflow y credenciales.
 
-Con una clave distinta, las credenciales importadas no se pueden descifrar.
+1. Levantar n8n con la **misma** `N8N_ENCRYPTION_KEY` y esperar unos segundos: mientras arranca responde `200` con "n8n is starting up", aunque aún no esté listo.
+2. Copiar los respaldos al contenedor:
+   ```bash
+   docker compose cp backups/backup-workflows.json n8n:/home/node/.n8n/
+   docker compose cp backups/backup-credentials.json n8n:/home/node/.n8n/
+   ```
+3. Importar:
+   ```bash
+   docker compose exec n8n n8n import:workflow --input=/home/node/.n8n/backup-workflows.json
+   docker compose exec n8n n8n import:credentials --input=/home/node/.n8n/backup-credentials.json
+   ```
+4. **Publicar cada workflow** (el import los deja inactivos) y reiniciar:
+   ```bash
+   docker compose exec n8n n8n list:workflow          # ver los IDs
+   docker compose exec n8n n8n publish:workflow --id=<ID>
+   docker compose restart n8n
+   ```
+5. Probar `curl http://localhost:5678/webhook/health`.
+
+Con una clave distinta, las credenciales importadas no se pueden descifrar. El usuario owner no está en el respaldo de workflows: hay que crearlo de nuevo si se pierde el volumen.
 
 ## Advertencias
 
