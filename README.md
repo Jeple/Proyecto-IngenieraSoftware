@@ -84,6 +84,7 @@ Los commits directos a `main` y `develop` están prohibidos.
 - US-04: Consulta Inteligente de Stock y Precios (Fuzzy Search)
 - US-05: Creación de Pedido con Descuento Inmediato de Stock
 - US-06: Consulta de Trazabilidad de Despachos por RUT — **implementado**
+- US-20: Ciclo de Vida del Pedido y Validación Farmacéutica — **implementado** (aprobación y rechazo de recetas por Telegram; GitHub #18)
 - US-07: Video Sprint Review e Incremento Sprint 1
 
 **Sprint 2 — Agente Telefónico de Voz, Recetas y Módulo Chofer**

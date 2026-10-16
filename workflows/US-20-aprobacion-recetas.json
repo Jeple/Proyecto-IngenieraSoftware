@@ -1,0 +1,481 @@
+{
+  "name": "US-20 Aprobación farmacéutica de recetas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-aprobacion",
+        "responseMode": "onReceived",
+        "webhookId": "us20-webhook-aprobacion",
+        "options": {}
+      },
+      "name": "webhook_aprobacion",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "id": "us20-node-1",
+      "webhookId": "us20-webhook-aprobacion"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-20 — parse_pharmacist_command.\n *\n * Authorization is two-layered:\n *   1. Telegram webhook secret (same contract as US-04/US-05/US-06/US-09):\n *      header X-Telegram-Bot-Api-Secret-Token compared against\n *      process.env.TELEGRAM_WEBHOOK_SECRET.\n *   2. The sender chat must be listed in process.env.TELEGRAM_PHARMACIST_CHAT_IDS\n *      (comma-separated chat_id list). Any other chat is dropped silently.\n *\n * Accepted commands (case-insensitive, optional \"/\" prefix and optional \"#\"):\n *   aprobar FAR-XXXX\n *   rechazar FAR-XXXX [motivo]\n *\n * Outputs ONE item { chat_id, command, codigo_far, motivo, text } or an EMPTY\n * array (unauthorized, non-text, or not a command). Never throws: the\n * immediate 200 was already returned by responseMode onReceived (RNF-01).\n */\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/** True when chatId belongs to the comma-separated pharmacist list. */\nfunction isPharmacist(chatId, list) {\n  if (chatId === null || chatId === undefined) return false;\n  const raw = typeof list === 'string' ? list : '';\n  const ids = raw\n    .split(',')\n    .map(function (s) { return s.trim(); })\n    .filter(function (s) { return s.length > 0; });\n  return ids.length > 0 && ids.indexOf(String(chatId)) !== -1;\n}\n\n/** Sanitizes free text so it can travel inside JSON bodies and logs safely. */\nfunction sanitizeMotivo(value) {\n  const raw = typeof value === 'string' ? value : '';\n  return raw\n    .replace(/[\"\\\\\\r\\n\\t]+/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, 120);\n}\n\n/**\n * Parses \"aprobar FAR-XXXX\" / \"rechazar FAR-XXXX [motivo]\".\n * Returns { command, codigo_far, motivo } or null when the text is not a command.\n */\nfunction parsePharmacistCommand(text) {\n  if (typeof text !== 'string') return null;\n  const m = /^\\s*\\/?\\s*(aprobar|rechazar)\\s+#?(FAR-\\d{4})\\b\\s*(.*)$/i.exec(text);\n  if (!m) return null;\n  return {\n    command: m[1].toLowerCase(),\n    codigo_far: '#' + m[2].toUpperCase(),\n    motivo: sanitizeMotivo(m[3])\n  };\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item or an EMPTY array\n * (unauthorized, not a pharmacist, non-text, or not a command).\n */\nfunction parseTelegramUpdate(update, headers, secret, pharmacists) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  if (!isPharmacist(chat, pharmacists)) return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return [];\n  const parsed = parsePharmacistCommand(text);\n  if (!parsed) return [];\n  return [\n    {\n      json: {\n        chat_id: chat,\n        command: parsed.command,\n        codigo_far: parsed.codigo_far,\n        motivo: parsed.motivo,\n        text: text\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update = json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        process.env.TELEGRAM_WEBHOOK_SECRET,\n        process.env.TELEGRAM_PHARMACIST_CHAT_IDS\n      );\n      if (out.length) return out;\n    }\n  } catch (err) {\n    return [];\n  }\n  return [];\n}\n"
+      },
+      "name": "parse_pharmacist_command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ],
+      "id": "us20-node-2"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        620,
+        300
+      ],
+      "id": "us20-node-3"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:E"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "name": "read_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        840,
+        300
+      ],
+      "id": "us20-node-4"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-20 — evaluate_approval.\n *\n * Applies the pharmacist transition to ONE parsed command:\n *   aprobar  + RECETA_RECIBIDA -> EN_PREPARACION  (no stock effect)\n *   rechazar + RECETA_RECIBIDA -> RECHAZADO       (releases stock_reservado once)\n * Every other combination is INVALID and produces NO writes: the origin state\n * is the idempotency guard, so a repeated command can never release stock twice.\n *\n * The customer chat (ordenes.telefono) is notified on approval and rejection.\n */\nconst ESTADO_RECETA = 'RECETA_RECIBIDA';\nconst ESTADO_PREPARACION = 'EN_PREPARACION';\nconst ESTADO_RECHAZADO = 'RECHAZADO';\nconst ACCION_APROBADA = 'RECETA_APROBADA';\nconst ACCION_RECHAZADA = 'RECETA_RECHAZADA';\n\nfunction normalize(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n}\n\nfunction rowJson(item) {\n  return item && item.json ? item.json : item;\n}\n\n/** Canonical FAR code without the leading '#', uppercase. */\nfunction codigoKey(value) {\n  return String(value === null || value === undefined ? '' : value)\n    .toUpperCase()\n    .replace(/^#/, '')\n    .trim();\n}\n\nfunction findOrderByCode(codigo, orderItems) {\n  const key = codigoKey(codigo);\n  if (!key) return null;\n  const rows = (orderItems || [])\n    .map(rowJson)\n    .filter(function (r) { return r && typeof r === 'object'; });\n  for (let i = 0; i < rows.length; i++) {\n    if (codigoKey(rows[i].codigo_far) === key) return rows[i];\n  }\n  return null;\n}\n\nfunction findInventoryFor(medicamentoId, inventoryItems) {\n  const key = normalize(medicamentoId);\n  if (!key) return null;\n  const rows = (inventoryItems || [])\n    .map(rowJson)\n    .filter(function (r) { return r && typeof r === 'object'; });\n  for (let i = 0; i < rows.length; i++) {\n    if (normalize(rows[i].medicamento_id) === key) return rows[i];\n  }\n  return null;\n}\n\n/**\n * Pure decision over the order state. Never throws.\n * Returns { decisionKey, estado_anterior, estado_nuevo, delta_reservado,\n *           pharmacist_message, customer_message }.\n */\nfunction decideTransition(order, command, motivo, codigoRaw) {\n  const codigo = order\n    ? '#' + codigoKey(order.codigo_far)\n    : (codigoRaw ? '#' + codigoKey(codigoRaw) : '#FAR-XXXX');\n  const estado = order && order.estado ? String(order.estado) : '';\n  const base = {\n    decisionKey: 'INVALID',\n    estado_anterior: '',\n    estado_nuevo: '',\n    delta_reservado: 0,\n    pharmacist_message: '',\n    customer_message: ''\n  };\n  if (!order) {\n    base.pharmacist_message = 'No encontré el pedido ' + codigo + '.';\n    return base;\n  }\n  const esAprobar = command === 'aprobar';\n  const esRechazar = command === 'rechazar';\n  if (!esAprobar && !esRechazar) {\n    base.pharmacist_message =\n      'Comando no reconocido. Usa \"aprobar FAR-XXXX\" o \"rechazar FAR-XXXX [motivo]\".';\n    return base;\n  }\n  if (estado === ESTADO_RECETA) {\n    if (esAprobar) {\n      base.decisionKey = 'APPROVE';\n      base.estado_anterior = ESTADO_RECETA;\n      base.estado_nuevo = ESTADO_PREPARACION;\n      base.pharmacist_message = 'Aprobado: ' + codigo + ' pasa a ' + ESTADO_PREPARACION + '.';\n      base.customer_message = 'Tu pedido ' + codigo + ' fue aprobado y pasa a preparación.';\n    } else {\n      base.decisionKey = 'REJECT';\n      base.estado_anterior = ESTADO_RECETA;\n      base.estado_nuevo = ESTADO_RECHAZADO;\n      base.delta_reservado = -Math.abs(Number(order.cantidad) || 0);\n      base.pharmacist_message = 'Rechazado: ' + codigo + ' queda en ' + ESTADO_RECHAZADO + '.';\n      base.customer_message =\n        'Tu pedido ' + codigo + ' fue rechazado por el farmacéutico' +\n        (motivo ? ': ' + motivo : '') +\n        '. Puedes contactar a la farmacia si tienes dudas.';\n    }\n    return base;\n  }\n  if (esAprobar && estado === ESTADO_PREPARACION) {\n    base.pharmacist_message =\n      codigo + ' ya estaba aprobado (' + ESTADO_PREPARACION + '). No se aplicó ningún cambio.';\n    return base;\n  }\n  if (esRechazar && estado === ESTADO_RECHAZADO) {\n    base.pharmacist_message = codigo + ' ya estaba rechazado. No se aplicó ningún cambio.';\n    return base;\n  }\n  base.pharmacist_message =\n    codigo + ' no está en ' + ESTADO_RECETA +\n    ' (estado actual: ' + (estado || 'desconocido') + '). No se aplicó ningún cambio.';\n  return base;\n}\n\n/**\n * Inventory update payload for a rejection: stock_reservado decreases by the\n * order quantity and is clamped at 0 (never negative). Returns null when the\n * inventory row is missing (the caller warns instead of writing blindly).\n */\nfunction buildInventoryUpdate(order, invRow, nowIso) {\n  if (!order || !invRow) return null;\n  const reserved = Number(invRow.stock_reservado);\n  const cantidad = Math.abs(Number(order.cantidad) || 0);\n  const current = isNaN(reserved) ? 0 : reserved;\n  const expected = Math.max(0, current - cantidad);\n  return {\n    medicamento_id: order.medicamento_id,\n    stock_real: Number(invRow.stock_real),\n    stock_reservado: expected,\n    ultima_actualizacion: nowIso || new Date().toISOString()\n  };\n}\n\n/** Bitacora row with the extended audit columns (estado_anterior/estado_nuevo/actor). */\nfunction buildBitacoraRow(order, decision, chatId, motivo, nowIso) {\n  const codigo = codigoKey(order.codigo_far);\n  const esRechazo = decision.decisionKey === 'REJECT';\n  const detalle = esRechazo\n    ? 'Rechazo farmacéutico vía Telegram; actor ' + chatId + '; motivo: ' + (motivo || 'sin motivo indicado')\n    : 'Aprobación farmacéutica vía Telegram; actor ' + chatId;\n  return {\n    timestamp: nowIso || new Date().toISOString(),\n    accion: esRechazo ? ACCION_RECHAZADA : ACCION_APROBADA,\n    codigo_far: codigo,\n    medicamento_id: order.medicamento_id,\n    delta_reservado: decision.delta_reservado,\n    detalle: detalle,\n    estado_anterior: decision.estado_anterior,\n    estado_nuevo: decision.estado_nuevo,\n    actor: 'farmaceutico:' + chatId\n  };\n}\n\n/**\n * Full payload for ONE parsed command, consumed by the write and reply nodes.\n * INVALID decisions carry no writes and no customer message.\n */\nfunction evaluateApproval(parsed, orderItems, inventoryItems, nowIso) {\n  if (!parsed || !parsed.chat_id || !parsed.command || !parsed.codigo_far) return null;\n  const order = findOrderByCode(parsed.codigo_far, orderItems);\n  const decision = decideTransition(order, parsed.command, parsed.motivo, parsed.codigo_far);\n  const payload = {\n    chat_id: String(parsed.chat_id),\n    codigo_far: codigoKey(parsed.codigo_far),\n    decision: decision.decisionKey,\n    estado_anterior: decision.estado_anterior,\n    estado_nuevo: decision.estado_nuevo,\n    delta_reservado: decision.delta_reservado,\n    update_stock: 'NO',\n    inventory_update: null,\n    bitacora_row: null,\n    telefono:\n      order && order.telefono !== null && order.telefono !== undefined\n        ? String(order.telefono)\n        : '',\n    message_pharmacist: decision.pharmacist_message,\n    message_customer: decision.customer_message || ''\n  };\n  if (decision.decisionKey === 'REJECT' && order) {\n    const inv = findInventoryFor(order.medicamento_id, inventoryItems);\n    const inventoryUpdate = buildInventoryUpdate(order, inv, nowIso);\n    if (inventoryUpdate) {\n      payload.update_stock = 'SI';\n      payload.inventory_update = inventoryUpdate;\n      payload.message_pharmacist +=\n        ' Se liberó el stock reservado (' + Math.abs(Number(order.cantidad) || 0) + ').';\n    } else {\n      payload.message_pharmacist +=\n        ' Advertencia: no se encontró fila de inventario; revisar manualmente.';\n    }\n  }\n  if (decision.decisionKey === 'APPROVE' || decision.decisionKey === 'REJECT') {\n    payload.bitacora_row = buildBitacoraRow(order, decision, parsed.chat_id, parsed.motivo, nowIso);\n  }\n  return payload;\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  let parsed = null;\n  try {\n    parsed = $('parse_pharmacist_command').first().json;\n  } catch (err) {\n    parsed = null;\n  }\n  if (!parsed) return [];\n  const orderRows = $('read_ordenes').all();\n  const inventoryRows = $('read_inventario').all();\n  const payload = evaluateApproval(parsed, orderRows, inventoryRows, new Date().toISOString());\n  if (!payload) return [];\n  return [{ json: payload }];\n}\n"
+      },
+      "name": "evaluate_approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        300
+      ],
+      "id": "us20-node-5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us20-cond-commit",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "INVALID",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "if_commit",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        300
+      ],
+      "id": "us20-node-6"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $('evaluate_approval').first().json.codigo_far }}",
+            "estado": "={{ $('evaluate_approval').first().json.estado_nuevo }}"
+          },
+          "matchingColumns": [
+            "codigo_far"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "update_orden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1500,
+        200
+      ],
+      "id": "us20-node-7"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us20-cond-update-stock",
+              "leftValue": "={{ $('evaluate_approval').first().json.update_stock }}",
+              "rightValue": "SI",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "if_reject",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1720,
+        200
+      ],
+      "id": "us20-node-8"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "medicamento_id": "={{ $('evaluate_approval').first().json.inventory_update.medicamento_id }}",
+            "stock_real": "={{ $('evaluate_approval').first().json.inventory_update.stock_real }}",
+            "stock_reservado": "={{ $('evaluate_approval').first().json.inventory_update.stock_reservado }}",
+            "ultima_actualizacion": "={{ $('evaluate_approval').first().json.inventory_update.ultima_actualizacion }}"
+          },
+          "matchingColumns": [
+            "medicamento_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "update_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1940,
+        100
+      ],
+      "id": "us20-node-9"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "bitacora"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $('evaluate_approval').first().json.bitacora_row.timestamp }}",
+            "accion": "={{ $('evaluate_approval').first().json.bitacora_row.accion }}",
+            "codigo_far": "={{ $('evaluate_approval').first().json.bitacora_row.codigo_far }}",
+            "medicamento_id": "={{ $('evaluate_approval').first().json.bitacora_row.medicamento_id }}",
+            "delta_reservado": "={{ $('evaluate_approval').first().json.bitacora_row.delta_reservado }}",
+            "detalle": "={{ $('evaluate_approval').first().json.bitacora_row.detalle }}",
+            "estado_anterior": "={{ $('evaluate_approval').first().json.bitacora_row.estado_anterior }}",
+            "estado_nuevo": "={{ $('evaluate_approval').first().json.bitacora_row.estado_nuevo }}",
+            "actor": "={{ $('evaluate_approval').first().json.bitacora_row.actor }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "append_bitacora",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2160,
+        200
+      ],
+      "id": "us20-node-10"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $('evaluate_approval').first().json.telefono }}\",\n  \"text\": \"={{ $('evaluate_approval').first().json.message_customer }}\"\n}",
+        "options": {}
+      },
+      "name": "notify_customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        200
+      ],
+      "id": "us20-node-11"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $('evaluate_approval').first().json.chat_id }}\",\n  \"text\": \"={{ $('evaluate_approval').first().json.message_pharmacist }}\"\n}",
+        "options": {}
+      },
+      "name": "reply_pharmacist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        200
+      ],
+      "id": "us20-node-12"
+    }
+  ],
+  "connections": {
+    "webhook_aprobacion": {
+      "main": [
+        [
+          {
+            "node": "parse_pharmacist_command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_pharmacist_command": {
+      "main": [
+        [
+          {
+            "node": "read_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          {
+            "node": "read_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_inventario": {
+      "main": [
+        [
+          {
+            "node": "evaluate_approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "evaluate_approval": {
+      "main": [
+        [
+          {
+            "node": "if_commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_commit": {
+      "main": [
+        [
+          {
+            "node": "update_orden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "reply_pharmacist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_orden": {
+      "main": [
+        [
+          {
+            "node": "if_reject",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_reject": {
+      "main": [
+        [
+          {
+            "node": "update_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_inventario": {
+      "main": [
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_bitacora": {
+      "main": [
+        [
+          {
+            "node": "notify_customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "notify_customer": {
+      "main": [
+        [
+          {
+            "node": "reply_pharmacist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "9b1e2f3a-4c5d-4e6f-8a9b-0c1d2e3f4a5b",
+  "tags": []
+}

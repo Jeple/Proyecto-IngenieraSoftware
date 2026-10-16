@@ -32,7 +32,8 @@ var HEADERS = {
   ordenes: ['codigo_far', 'fecha_creacion', 'rut', 'telefono', 'nombre_cliente', 'medicamento_id',
     'cantidad', 'precio_total_clp', 'estado', 'url_receta', 'fecha_receta', 'fecha_expiracion', 'notas'],
   despachos: ['codigo_far', 'sector', 'direccion', 'estado_ruta', 'eta_minutos', 'fecha_marcado'],
-  bitacora: ['timestamp', 'accion', 'codigo_far', 'medicamento_id', 'delta_reservado', 'detalle']
+  bitacora: ['timestamp', 'accion', 'codigo_far', 'medicamento_id', 'delta_reservado', 'detalle',
+    'estado_anterior', 'estado_nuevo', 'actor']
 };
 
 // Dropdown definitions: column index (1-based) + allowed values.
@@ -43,7 +44,7 @@ var DROPDOWNS = {
   ],
   ordenes: [
     { column: 9, values: ['PENDIENTE_RECETA', 'RECETA_RECIBIDA', 'EN_PREPARACION',
-      'EN_RUTA', 'ENTREGADO', 'CANCELADO_EXPIRADO'] } // estado (RF-07)
+      'EN_RUTA', 'ENTREGADO', 'CANCELADO_EXPIRADO', 'RECHAZADO'] } // estado (RF-07)
   ],
   despachos: [
     { column: 2, values: ['Peñalolén Alto', 'Peñalolén Nuevo', 'San Luis', 'Otro'] }, // sector

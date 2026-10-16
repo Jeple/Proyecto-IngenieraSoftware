@@ -45,6 +45,7 @@ Toda la mensajería del sistema pasa hoy por **Telegram Bot API**: los webhooks 
 | US-09 | [`US-09-recetas-email.json`](./US-09-recetas-email.json) | `recetas-email` | RF-05 | **implementado (postergado)** |
 | US-10 | [`US-10-cron-expiracion.json`](./US-10-cron-expiracion.json) | `cron-expiracion` | RF-06 | **implementado** |
 | US-11 | Sin workflow: PWA estática en [`../pwa/`](../pwa/) | endpoint backend pendiente | RF-08 | **PWA implementada**, endpoint pendiente |
+| US-20 | [`US-20-aprobacion-recetas.json`](./US-20-aprobacion-recetas.json) | `aprobacion-recetas` | US-20 / GitHub #18 | **implementado** |
 
 Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-13, US-14, US-15) no aparecen en esta tabla. El detalle de qué flujo cubre cada requerimiento está en [`docs/arquitectura.md`](../docs/arquitectura.md).
 
@@ -84,6 +85,13 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 - La PWA vive en [`../pwa/`](../pwa/) y hoy corre en **modo demostración** porque el endpoint que entrega y actualiza los despachos todavía no existe. El contrato esperado (`GET`/`PATCH` de despachos) está documentado en [`../pwa/README.md`](../pwa/README.md).
 - **Prueba local:** `node pwa/test/pwa.test.mjs` (Node ≥ 18, sin dependencias).
 
+### Notas sobre US-20 (`US-20-aprobacion-recetas.json`)
+
+- **Comandos de aprobación:** el farmacéutico autorizado responde a la notificación con `aprobar FAR-XXXX` o `rechazar FAR-XXXX [motivo]`. El chat debe estar en `TELEGRAM_PHARMACIST_CHAT_IDS`; cualquier otro chat se descarta en silencio (no hay respuesta a terceros).
+- **Webhook propio:** `POST telegram-aprobacion`. El router de intenciones (US-17) despachará aquí los comandos; hasta que exista, el webhook recibe las peticiones directamente.
+- **Idempotencia:** el estado de origen manda. Repetir `aprobar` o `rechazar` sobre una orden que ya salió de `RECETA_RECIBIDA` no escribe nada y nunca libera stock dos veces.
+- **Prueba local:** `node scripts/test-aprobacion.mjs` (Node ≥ 18, sin dependencias).
+
 ## Validación por CI
 
 El workflow [`.github/workflows/validate-workflows.yml`](../.github/workflows/validate-workflows.yml) se ejecuta en cada Push o Pull Request que toque `workflows/**`, `scripts/**` o `pwa/**`:
@@ -93,6 +101,7 @@ El workflow [`.github/workflows/validate-workflows.yml`](../.github/workflows/va
 - **Falla** si `node scripts/test-reserva.mjs` falla (reserva de US-05 y drift guard del matcher).
 - **Falla** si `node scripts/test-trazabilidad.mjs` falla (trazabilidad de US-06).
 - **Falla** si `node scripts/test-cron-expiracion.mjs` falla (expiración de US-10).
+- **Falla** si `node scripts/test-aprobacion.mjs` falla (aprobación farmacéutica, US-20).
 - **Falla** si `node scripts/test-recetas-telegram.mjs` falla (ingesta de recetas por Telegram, US-09 / RF-05).
 - **Falla** si `node scripts/test-recetas-email.mjs` falla (ingesta de recetas por correo IMAP, US-09 / RF-05).
 - **Falla** si `node pwa/test/pwa.test.mjs` falla (funciones puras de la PWA de US-11).

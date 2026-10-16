@@ -69,16 +69,18 @@ Enumeración de `estado` (RF-07: los estados vigentes son exactamente esta lista
 | Estado | Significado |
 |---|---|
 | `PENDIENTE_RECETA` | Orden confirmada; aguarda la fotografía de la receta |
-| `RECETA_RECIBIDA` | Receta almacenada en Google Drive y enlazada en `url_receta` (llegó por Telegram o por correo IMAP, RF-05); habilita el paso a `EN_PREPARACION` |
+| `RECETA_RECIBIDA` | Receta almacenada en Google Drive y enlazada en `url_receta` (llegó por Telegram o por correo IMAP, RF-05); habilita la aprobación farmacéutica (US-20): solo con aprobación explícita pasa a `EN_PREPARACION` |
 | `EN_PREPARACION` | Bodega prepara el pedido |
 | `EN_RUTA` | Pedido en despacho vehicular |
 | `ENTREGADO` | Pedido entregado al vecino |
 | `CANCELADO_EXPIRADO` | Cancelado por el cron de 12 horas (RF-06) |
+| `RECHAZADO` | Receta rechazada por el farmacéutico (US-20); el stock reservado se libera en la misma transición |
 
 Notas de `RECETA_RECIBIDA`:
 
 - El cambio de estado ocurre solo después de que la receta está en Google Drive y `ordenes.url_receta` apunta a ella; nunca se marca el estado con la imagen aún sin subir.
 - Junto con el estado se registra el movimiento `RECETA_RECIBIDA` en `bitacora` (delta `0`, sin efecto en `stock_reservado`) y se fija `fecha_receta`.
+- La transición a `EN_PREPARACION` requiere aprobación explícita de un farmacéutico autorizado; el rechazo deja la orden en `RECHAZADO` y libera `stock_reservado` una sola vez (US-20, comandos por Telegram).
 
 ## Hoja `despachos`
 
@@ -101,16 +103,20 @@ Notas:
 | Columna | Tipo | Obligatoria | Descripción |
 |---|---|---|---|
 | `timestamp` | datetime | Sí | Momento del movimiento |
-| `accion` | text | Sí | Tipo de movimiento, p. ej. `RESERVA_ALTA`, `RESERVA_LIBERADA`, `EXPIRACION`, `RECETA_RECIBIDA` |
+| `accion` | text | Sí | Tipo de movimiento, p. ej. `RESERVA_ALTA`, `RESERVA_LIBERADA`, `EXPIRACION`, `RECETA_RECIBIDA`, `RECETA_APROBADA`, `RECETA_RECHAZADA` |
 | `codigo_far` | text | Sí | Orden afectada |
 | `medicamento_id` | text | Sí | Medicamento afectado |
 | `delta_reservado` | int (con signo) | Sí | Variación de `stock_reservado` (positivo al reservar, negativo al liberar) |
 | `detalle` | text | No | Información adicional del movimiento |
+| `estado_anterior` | text | No | Estado de origen de la transición (desde US-20) |
+| `estado_nuevo` | text | No | Estado de destino de la transición (desde US-20) |
+| `actor` | text | No | Actor que ejecutó la transición, p. ej. `farmaceutico:<chat_id>` (desde US-20) |
 
 Notas:
 
 - Hoja de solo inserción desde n8n: nunca se editan ni borran filas; es la evidencia de trazabilidad que explica cada cambio de `stock_reservado`.
 - Todo flujo que modifica reservas debe escribir su contraparte en `bitacora` en la misma operación encolada.
+- Las columnas `estado_anterior`, `estado_nuevo` y `actor` se incorporaron con US-20; US-05, US-09 y US-10 todavía no las completan (alineación pendiente, ver [ciclo-vida-pedido.md](./ciclo-vida-pedido.md)).
 
 ## Reglas de negocio
 
@@ -119,23 +125,20 @@ Notas:
 | Saldo neto y quiebre | `stock_neto = stock_real - stock_reservado`. Si el saldo es 0, se informa el quiebre y se sugieren bioequivalentes: filas de `catalogo` cuyo `bioequivalente_de` apunta al `medicamento_id` consultado (búsqueda inversa), solo con `activo = SI` | RF-02 |
 | Reserva inmediata | Toda orden confirmada incrementa `stock_reservado` de forma inmediata y registra el movimiento en `bitacora` | RF-04 |
 | Expiración a 12 horas | Un cron horario cancela las órdenes `PENDIENTE_RECETA` con `fecha_expiracion` vencida: estado `CANCELADO_EXPIRADO`, decremento de `stock_reservado`, registro en `bitacora` y notificación al usuario por Telegram | RF-06 |
+| Aprobación farmacéutica | `RECETA_RECIBIDA` → `EN_PREPARACION` solo con aprobación explícita de un farmacéutico autorizado; `rechazar` pasa la orden a `RECHAZADO` y libera `stock_reservado` una sola vez. Los comandos llegan por Telegram y el chat debe estar en `TELEGRAM_PHARMACIST_CHAT_IDS` | US-20 (GitHub #18) |
 | Estados vigentes | Los estados válidos de una orden son exactamente la enumeración de `ordenes.estado`; RF-07 los devuelve al consultar por RUT o `#FAR-XXXX` | RF-07 |
 | Escrituras serializadas | Las escrituras de reserva son secuenciales y encoladas desde n8n (un solo worker). La API de Sheets se trata como recurso serializado para evitar condiciones de carrera y sobreventas | RNF-04 |
 | Recetas fuera de la planilla | `ordenes.url_receta` apunta a Google Drive con permisos restringidos a personal autorizado. Nunca se guardan imágenes de recetas dentro del spreadsheet | RNF-07 |
 
-## Decisión abierta D-01 — estado inicial de órdenes sin receta
+## Decisión D-01 — estado inicial de órdenes sin receta (resuelta)
 
-> **Pendiente de validación por el equipo.** El informe de Inception define `PENDIENTE_RECETA` como estado inicial de toda orden, pero el catálogo incluye fármacos que no requieren prescripción (`requiere_receta = NO`), para los cuales esa espera carece de sentido.
+> **Resuelta por el equipo el 16-oct-2026.** Si `requiere_receta = NO`, la orden nace directamente en `EN_PREPARACION` y no expira. Si `requiere_receta = SI`, la orden nace en `PENDIENTE_RECETA` con `fecha_expiracion = fecha_creacion + 12 h` (RF-06).
 >
-> **Supuesto de trabajo (sin modificar el enumerado):** si `requiere_receta = NO`, la orden nace directamente en `EN_PREPARACION` y no expira a las 12 horas. Si `requiere_receta = SI`, la orden nace en `PENDIENTE_RECETA` con `fecha_expiracion = fecha_creacion + 12 h`, tal como describe RF-06.
->
-> Esta propuesta no agrega estados nuevos fuera del enumerado de `ordenes.estado`. Debe confirmarse con el personal de bodega y el equipo docente antes de implementar el workflow `reserva` (US-05).
->
-> **Nota — implementación provisional en US-05:** `workflows/US-05-reserva.json` aplica este supuesto de forma provisoria (`requiere_receta = NO` → la orden nace en `EN_PREPARACION`; `requiere_receta = SI` → `PENDIENTE_RECETA` con `fecha_expiracion = fecha_creacion + 12 h`), pendiente de validación con bodega. No introduce estados fuera del enumerado; si la validación cambia la decisión, el ajuste se concentra en `initialStateFor` del nodo `evaluate_reservation`.
+> Implementada en `workflows/US-05-reserva.json` (nodo `evaluate_reservation`, función `initialStateFor`) y verificada en `scripts/test-reserva.mjs`. No agrega estados fuera de la enumeración de `ordenes.estado`.
 
 ## Checklist de validación con el equipo
 
-- [ ] Confirmar D-01 (estado inicial de órdenes sin receta) antes de US-05.
+- [x] D-01 confirmada (16-oct-2026): sin receta → `EN_PREPARACION`; con receta → `PENDIENTE_RECETA` (12 h).
 - [ ] Validar con bodega los nombres de columna y los enums (`sector`, `estado`, `estado_ruta`).
 - [ ] Verificar que las cantidades de `stock_real` del catálogo oficial respetan `int ≥ 0`.
 - [ ] Eliminar las filas de ejemplo de `catalogo` e `inventario` creadas por `scripts/setup-sheets.gs` antes de cargar el catálogo oficial.

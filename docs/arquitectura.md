@@ -48,7 +48,7 @@ El canal de texto se migró de WhatsApp Cloud API a Telegram Bot API en el Sprin
 
 | Capa | Tecnología | Responsabilidad |
 |---|---|---|
-| Orquestación | n8n (Docker) | Workflows `consulta-stock`, `reserva`, `trazabilidad`, `recetas-telegram`, `recetas-email`, `cron-expiracion`; encolamiento secuencial de escrituras (RNF-04) |
+| Orquestación | n8n (Docker) | Workflows `consulta-stock`, `reserva`, `trazabilidad`, `recetas-telegram`, `recetas-email`, `cron-expiracion`, `aprobacion-recetas`; encolamiento secuencial de escrituras (RNF-04) |
 | Datos | Google Sheets + Google Apps Script | Catálogo, inventario, órdenes, despachos y bitácora; libro inicializado por `scripts/setup-sheets.gs` (US-01) |
 | Inteligencia artificial | Gemini Flash (Google AI Studio) | Diálogo y búsqueda difusa de medicamentos, con grounding estricto al catálogo (R-02) |
 | Canales | Telegram Bot API + Vapi | Entrada y salida del vecino por texto y voz (RNF-01, RNF-02) |
