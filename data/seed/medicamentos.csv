@@ -1,0 +1,17 @@
+ID_Medicamento,Principio_Activo,Marca,Dosis,Forma_Farmaceutica,Grupo_Bioequivalente,Requiere_Receta,Precio_CLP,Stock_Real,Stock_Reservado,Activo
+MED-001,Pregabalina,Pregalex,75 mg,Cápsula,BE-PREG-75,SI,8990,65,0,SI
+MED-002,Pregabalina,Neurogab,75 mg,Cápsula,BE-PREG-75,SI,7490,65,1,SI
+MED-003,Pregabalina,Pregalex,150 mg,Cápsula,BE-PREG-150,SI,12990,96,1,SI
+MED-004,Pregabalina,Neurogab,150 mg,Cápsula,BE-PREG-150,SI,10990,101,1,SI
+MED-005,Melatonina,Somnia,3 mg,Comprimido,BE-MELA-3,NO,5990,39,2,SI
+MED-006,Melatonina,Melaton,3 mg,Comprimido,BE-MELA-3,NO,4990,45,0,SI
+MED-007,Multivitamínico,Vitalmax,Adultos,Comprimido,BE-MULT-AD,NO,9990,42,1,SI
+MED-008,Multivitamínico,Multivit Plus,Adultos,Comprimido,BE-MULT-AD,NO,8490,118,2,SI
+MED-009,Celecoxib,Celoxib,200 mg,Cápsula,BE-CELE-200,SI,7990,64,0,SI
+MED-010,Celecoxib,Artrocel,200 mg,Cápsula,BE-CELE-200,SI,6990,107,2,SI
+MED-011,Losartán,Losarmed,50 mg,Comprimido,BE-LOSA-50,SI,4990,92,0,SI
+MED-012,Losartán,Cardiosar,50 mg,Comprimido,BE-LOSA-50,SI,3990,90,1,SI
+MED-013,Escitalopram,Esciprax,10 mg,Comprimido,BE-ESCI-10,SI,6490,112,0,SI
+MED-014,Escitalopram,Lexamind,10 mg,Comprimido,BE-ESCI-10,SI,5490,120,1,SI
+MED-015,Escitalopram,Esciprax,20 mg,Comprimido,BE-ESCI-20,SI,9490,90,1,SI
+MED-016,Escitalopram,Lexamind,20 mg,Comprimido,BE-ESCI-20,SI,7990,69,1,SI
