@@ -259,7 +259,7 @@ export function renderHtml(data) {
 '    <h2>Qué mirar</h2>\n' +
 '    <p>Los números de arriba salen de los datos sintéticos versionados en el repositorio: son los mismos con los que se prueban los flujos, para que nadie vea información de pacientes reales.</p>\n' +
 '    <p>En operación, esta información vive en la planilla conectada al bot: el stock baja al reservar, cada receta espera la validación del químico farmacéutico y todo movimiento queda auditado.</p>\n' +
-'    <p>Para ver el sistema por dentro: abrir <b>presentacion/mapa-workflows.html</b> — cada flujo dibujado paso a paso, caja por caja.</p>\n' +
+'    <p>Para ver el sistema por dentro: abrir <b>presentacion/mapa-workflows.html</b> — cada flujo dibujado paso a paso, caja por caja. ¿La app real de n8n? Instrucciones en <b>presentacion/n8n-demo/LEEME.md</b> (Docker o Node).</p>\n' +
 '    <p>Avance del proyecto: 8 flujos de n8n y la PWA del conductor, con <b>' + k.pruebas + ' pruebas automáticas</b> en verde en cada cambio. En cierre: validación final en el entorno real y documentos de entrega.</p>\n' +
 '  </section>\n' +
 '</main>\n' +

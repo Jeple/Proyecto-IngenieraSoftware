@@ -40,6 +40,9 @@ secrets/*
 # PWA build output
 pwa/dist/
 
+# n8n local de demostracion (datos locales; no se versiona)
+presentacion/n8n-demo/n8n-data/
+
 # IDE settings
 .idea/
 .vscode/
