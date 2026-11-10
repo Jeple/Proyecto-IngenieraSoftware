@@ -13,8 +13,15 @@ import { FLUJOS, CREDENCIAL_GOOGLE, CREDENCIAL_DRIVE_OAUTH } from './flujos.mjs'
 
 export function sh(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', ...opts });
-  return { code: r.status === null ? -1 : r.status, out: (r.stdout || '') + (r.stderr || ''), error: r.error };
+  let out = (r.stdout || '') + (r.stderr || '');
+  if (r.error && r.error.code === 'ETIMEDOUT') {
+    out += `\n[tiempo agotado: «${cmd} ${args.slice(0, 4).join(' ')}» no terminó en ${Math.round(opts.timeout / 1000)} s]`;
+  }
+  return { code: r.status === null ? -1 : r.status, out, error: r.error };
 }
+
+/** Límite para cada comando de la CLI de n8n: si uno se cuelga, falla con un mensaje claro. */
+const LIMITE_CLI = { timeout: 240000 };
 
 /** Quita líneas de ruido de la CLI de n8n (licencia, trazas). */
 export function limpiarSalida(texto) {
@@ -91,7 +98,15 @@ export function credencialDriveOAuth(cliente) {
  * con la CLI de n8n, los publica y borra los temporales.
  * Devuelve un resumen sin secretos.
  */
-export function importarYPublicar(contenedor, repoDir, credenciales) {
+export function importarYPublicar(contenedor, repoDir, credenciales, avisar = () => {}) {
+  const t0 = Date.now();
+  const seg = () => Math.round((Date.now() - t0) / 1000) + ' s';
+  // Un comando de la CLI que se cuelga corta la importación en vez de bloquear los siguientes.
+  const cli = (args) => {
+    const res = sh('docker', ['exec', contenedor, 'n8n', ...args], LIMITE_CLI);
+    if (res.error && res.error.code === 'ETIMEDOUT') throw new Error(limpiarSalida(res.out).split('\n').slice(-1)[0]);
+    return res;
+  };
   const tmp = mkdtempSync(join(tmpdir(), 'farmacia-n8n-'));
   const destino = '/tmp/farmacia-import';
   const resumen = { credencial: 'omitida', importados: 0, publicados: [], errores: [] };
@@ -107,20 +122,23 @@ export function importarYPublicar(contenedor, repoDir, credenciales) {
     sh('docker', ['exec', '-u', 'root', contenedor, 'chown', '-R', 'node:node', destino]);
 
     if (credenciales) {
-      r = sh('docker', ['exec', contenedor, 'n8n', 'import:credentials', `--input=${destino}/credenciales.json`]);
+      r = cli(['import:credentials', `--input=${destino}/credenciales.json`]);
       if (r.code !== 0) resumen.errores.push('credenciales: ' + limpiarSalida(r.out).split('\n').slice(-1)[0]);
       else resumen.credencial = 'importada';
+      avisar(`credenciales: ${resumen.credencial} (${seg()})`);
     }
-    r = sh('docker', ['exec', contenedor, 'n8n', 'import:workflow', '--separate', `--input=${destino}/flujos`]);
+    r = cli(['import:workflow', '--separate', `--input=${destino}/flujos`]);
     const salida = limpiarSalida(r.out);
     const m = /Successfully imported (\d+)/.exec(salida);
     resumen.importados = m ? Number(m[1]) : 0;
     if (r.code !== 0 || !m) resumen.errores.push('workflows: ' + salida.split('\n').slice(-1)[0]);
+    avisar(`flujos importados: ${resumen.importados}/${FLUJOS.length} (${seg()})`);
 
     for (const f of FLUJOS) {
-      r = sh('docker', ['exec', contenedor, 'n8n', 'publish:workflow', `--id=${f.id}`]);
+      r = cli(['publish:workflow', `--id=${f.id}`]);
       if (r.code === 0 && !/not found|error/i.test(limpiarSalida(r.out))) resumen.publicados.push(f.id);
       else resumen.errores.push(`publicar ${f.id}: ` + limpiarSalida(r.out).split('\n').slice(-1)[0]);
+      avisar(`publicado ${f.id}: ${resumen.publicados.includes(f.id) ? 'sí' : 'no'} (${seg()})`);
     }
   } finally {
     sh('docker', ['exec', '-u', 'root', contenedor, 'rm', '-rf', destino]);

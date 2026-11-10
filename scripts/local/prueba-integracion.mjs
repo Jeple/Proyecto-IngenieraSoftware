@@ -129,17 +129,19 @@ async function main() {
   if (run.code !== 0) throw new Error('No se pudo iniciar n8n: ' + limpiarSalida(run.out));
 
   const tListo = await esperarListo(BASE);
+  console.log(`n8n listo en ${Math.round(tListo / 1000)} s. Importando la credencial falsa y los ${FLUJOS.length} flujos...`);
   // Credencial falsa a propósito: no es una clave (el nodo de Sheets falla al firmar).
   const credFalsa = [{ id: 'farmaciaGoogleSA', name: 'Google (cuenta de servicio)', type: 'googleApi',
     data: { email: 'prueba@proyecto-falso.iam.gserviceaccount.com', privateKey: 'NO-ES-UNA-CLAVE-PRIVADA' } },
   { id: 'farmaciaGoogleDriveOAuth', name: 'Google Drive (OAuth)', type: 'googleDriveOAuth2Api',
     data: { clientId: 'cliente-falso.apps.googleusercontent.com', clientSecret: 'NO-ES-UN-SECRETO' } }];
-  const imp = importarYPublicar(CONTENEDOR, REPO, credFalsa);
+  const imp = importarYPublicar(CONTENEDOR, REPO, credFalsa, (m) => console.log('  ' + m));
   console.log(`Importados: ${imp.importados}/${FLUJOS.length}; publicados: ${imp.publicados.length}/${FLUJOS.length}`);
   if (imp.errores.length) console.log('Errores de importación:\n  ' + imp.errores.join('\n  '));
   sh('docker', ['restart', CONTENEDOR]);
   await esperarListo(BASE);
   await esperarWebhook(BASE, WEBHOOK_PATH);
+  console.log('Webhook del router activo. Ejecutando los casos...');
   const version = limpiarSalida(sh('docker', ['exec', CONTENEDOR, 'n8n', '--version']).out).trim();
 
   // Casos funcionales
@@ -214,8 +216,14 @@ async function main() {
 }
 
 main()
-  .then((ok) => { cerrar(); process.exit(ok ? 0 : 1); })
-  .catch((e) => { console.error('ERROR:', e.message); cerrar(); process.exit(2); });
+  .then((ok) => { if (!ok) mostrarLogN8n(); cerrar(); process.exit(ok ? 0 : 1); })
+  .catch((e) => { console.error('ERROR:', e.message); mostrarLogN8n(); cerrar(); process.exit(2); });
+
+/** Diagnóstico para la CI: las últimas líneas del log del contenedor de n8n. */
+function mostrarLogN8n() {
+  const r = sh('docker', ['logs', '--tail', '60', CONTENEDOR], { timeout: 30000 });
+  console.log('\n--- Últimas líneas del log de n8n ---\n' + limpiarSalida(r.out));
+}
 
 function cerrar() {
   mock.close();
