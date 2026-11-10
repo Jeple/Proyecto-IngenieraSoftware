@@ -1,0 +1,17 @@
+' Estilo común de los diagramas de la Entrega 2 (incluido con !include).
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam ArrowColor #444444
+skinparam componentStyle uml2
+skinparam sequenceMessageAlign left
+skinparam sequenceParticipantBorderColor #555555
+skinparam sequenceLifeLineBorderColor #999999
+skinparam noteBackgroundColor #FFF8DC
+skinparam noteBorderColor #C9B458
+skinparam participantBackgroundColor #F2F6FA
+skinparam actorBackgroundColor #F2F6FA
+skinparam databaseBackgroundColor #EAF5EA
+skinparam componentBackgroundColor #F2F6FA
+skinparam stereotypeCBackgroundColor #DDDDDD

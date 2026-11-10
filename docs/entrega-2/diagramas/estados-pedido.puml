@@ -1,0 +1,28 @@
+@startuml estados-pedido
+!include estilo.iuml
+title Máquina de estados del pedido (ordenes.estado)
+hide empty description
+
+[*] --> PENDIENTE_RECETA : reserva con receta (US-05)\n+cantidad reservada
+[*] --> EN_PREPARACION : reserva sin receta (US-05)\n+cantidad reservada
+PENDIENTE_RECETA --> RECETA_RECIBIDA : foto desde el chat titular (US-09)
+PENDIENTE_RECETA --> CANCELADO_EXPIRADO : 12 h sin receta (US-10)\n−cantidad reservada
+RECETA_RECIBIDA --> EN_PREPARACION : aprobar (US-20)
+RECETA_RECIBIDA --> RECHAZADO : rechazar (US-20)\n−cantidad reservada
+EN_PREPARACION --> EN_RUTA : en ruta (US-22)
+EN_RUTA --> ENTREGADO : entregado (US-22)\n−cantidad real y reservada
+CANCELADO_EXPIRADO --> [*]
+RECHAZADO --> [*]
+ENTREGADO --> [*]
+
+note right of RECETA_RECIBIDA
+  Nada pasa a preparación
+  sin aprobación explícita
+  del químico farmacéutico.
+end note
+note bottom of ENTREGADO
+  Estados terminales: ninguna transición sale de ellos.
+  Cada transición escribe una fila en bitacora
+  (estado_anterior, estado_nuevo, actor).
+end note
+@enduml

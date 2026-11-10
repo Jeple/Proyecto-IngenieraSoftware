@@ -12,7 +12,7 @@ US-XX-<slug>.json
 - `<slug>`: nombre del workflow dentro de n8n, en minúsculas y con guiones (ej. `consulta-stock`).
 - Ejemplo completo: `US-04-consulta-stock.json`.
 
-El prefijo corresponde a la historia que **origina** el flujo. Si una historia posterior amplía exactamente el mismo flujo, modifica el mismo archivo en lugar de crear otro. Si el flujo es independiente — con su propio disparador y su propio webhook — crea el suyo propio: así nacieron `US-05-reserva.json`, `US-06-trazabilidad.json` y `US-10-cron-expiracion.json`. El *router de intenciones* de Telegram (todavía pendiente, US-17) será quien despache cada mensaje al webhook correcto.
+El prefijo corresponde a la historia que **origina** el flujo. Si una historia posterior amplía exactamente el mismo flujo, modifica el mismo archivo en lugar de crear otro. Si el flujo es independiente — con su propio disparador — crea el suyo propio: así nacieron `US-05-reserva.json`, `US-06-trazabilidad.json` y `US-10-cron-expiracion.json`. El *router de intenciones* (US-17) es el único webhook del bot: recibe cada mensaje y lo deriva al subflujo que corresponde con *Execute Workflow*; los subflujos no tienen webhook propio.
 
 ## Exportar un workflow desde n8n
 
@@ -31,20 +31,24 @@ El prefijo corresponde a la historia que **origina** el flujo. Si una historia p
 
 **Los exportes de n8n nunca incluyen credenciales.** Cada desarrollador configura las suyas propias (Google Sheets/Drive, Telegram Bot API, Gemini, Vapi) en su instancia local de n8n, siguiendo el [Quickstart del README](../README.md). Los identificadores compartidos (por ejemplo `GOOGLE_SHEET_ID`) se toman del archivo `.env` local; los secretos nunca se commitean.
 
-Toda la mensajería del sistema pasa hoy por **Telegram Bot API**: los webhooks de los workflows usan el prefijo `telegram-` y el destinatario de cada respuesta es el `chat_id` del usuario.
+Toda la mensajería del sistema pasa por **Telegram Bot API**. El bot tiene **un solo webhook** (`/webhook/telegram-bot`, router US-17); los subflujos se invocan internamente con *Execute Workflow* y el destinatario de cada respuesta es el `chat_id` del usuario.
+
+**Credenciales (Entrega 2):** los nodos de Google Sheets y Drive referencian la credencial fija `farmaciaGoogleSA` (solo `id` y `name`, sin secretos). `scripts/local/levantar.mjs` la crea en n8n desde `secrets/service-account.json`, importa los flujos y los publica: no hay que enlazar nada a mano. La planilla y la carpeta se leen de `.env` con `$env` (en n8n 2.x los nodos Code no tienen `process.env`). Las reglas que debe cumplir todo workflow están en `scripts/test-workflows-n8n.mjs`.
 
 ## Mapa de historias → workflow
 
 | Historia | Archivo | Workflow n8n | Requerimientos | Estado |
 |---|---|---|---|---|
+| US-17 | [`US-17-router-telegram.json`](./US-17-router-telegram.json) | `farmaciaUS17rout` | RNF-01, RNF-03, RNF-08 | **implementado** (único webhook) |
+| US-22 | [`US-22-despacho-personal.json`](./US-22-despacho-personal.json) | `farmaciaUS22desp` | RF-07, RF-04 | **implementado** |
 | US-04 | [`US-04-consulta-stock.json`](./US-04-consulta-stock.json) | `consulta-stock` | RF-01, RF-02 | **implementado** |
 | US-05 | [`US-05-reserva.json`](./US-05-reserva.json) | `reserva` | RF-03, RF-04 | **implementado** |
 | US-06 | [`US-06-trazabilidad.json`](./US-06-trazabilidad.json) | `trazabilidad` | RF-07 | **implementado** |
-| US-08 | Sin archivo propio: Vapi invoca por HTTP los webhooks existentes | `consulta-stock`, `reserva` | RNF-02 | pendiente |
+| US-08 | — | — | RNF-02 | fuera del alcance firmado |
 | US-09 | [`US-09-recetas-telegram.json`](./US-09-recetas-telegram.json) | `recetas-telegram` | RF-05 | **implementado** |
 | US-09 | [`US-09-recetas-email.json`](./US-09-recetas-email.json) | `recetas-email` | RF-05 | **implementado (postergado)** |
 | US-10 | [`US-10-cron-expiracion.json`](./US-10-cron-expiracion.json) | `cron-expiracion` | RF-06 | **implementado** |
-| US-11 | Sin workflow: PWA estática en [`../pwa/`](../pwa/) | endpoint backend pendiente | RF-08 | **PWA implementada**, endpoint pendiente |
+| US-11 | Sin workflow: PWA estática en [`../pwa/`](../pwa/) | — | RF-08 | prototipo en modo demostración, fuera del alcance firmado (lo reemplaza US-22) |
 | US-20 | [`US-20-aprobacion-recetas.json`](./US-20-aprobacion-recetas.json) | `aprobacion-recetas` | US-20 / GitHub #18 | **implementado** |
 | US-21 | [`US-21-alertas-errores.json`](./US-21-alertas-errores.json) | `alertas-errores` | US-21 / GitHub #20 | **implementado** |
 
@@ -53,12 +57,12 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 ### Notas sobre US-04 (`US-04-consulta-stock.json`)
 
 - **US-04 es deliberadamente sin LLM:** no contiene nodos Gemini ni otros modelos de lenguaje. Como la respuesta se arma solo con datos leídos de las hojas `catalogo`/`inventario`, el grounding de RF-01 (nunca inventar nombres, precios ni stock) es **estructural**, no depende de un prompt.
-- **Webhook propio:** `POST telegram-consulta`. El router de intenciones de Telegram (US-17) enviará aquí las consultas de stock y precios; hasta que exista, el webhook recibe las peticiones directamente.
+- **Entrada:** el router (US-17) la invoca con el texto ya normalizado (sin saludos ni muletillas).
 - **Prueba local:** `node scripts/test-fuzzy-match.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta tras validar el JSON.
 
 ### Notas sobre US-05 (`US-05-reserva.json`)
 
-- **Router de Telegram:** el router de intenciones de Telegram despachará los mensajes de tipo *reserva* al webhook de este workflow (`POST telegram-reserva`). Hasta que ese router exista, el webhook recibe las peticiones directamente.
+- **Entrada:** el router (US-17) la invoca cuando el mensaje empieza con una palabra de reserva (reservar, encargar, apartar…), normalizando «2 cajas» a `x2`.
 - **Matcher difuso duplicado a propósito:** n8n no puede importar JavaScript local sin habilitar la *allowlist* de carpetas, por lo que `US-04-consulta-stock.json` y `US-05-reserva.json` cada uno lleva su propia copia del matcher. `node scripts/test-reserva.mjs` actúa como *drift guard*: ejecuta la misma lista de consultas en ambas copias y falla si cambia un veredicto o el `medicamento_id` matcheado.
 - **Entrega (GitHub #7):** la reserva exige el bloque de entrega separado por comas — `[producto], [dirección], [sector]` — con sector tolerante a acentos (Peñalolén Alto, Peñalolén Nuevo o San Luis). Sin datos o fuera de cobertura se rechaza con mensaje guía; con datos válidos, `append_despacho` crea la fila `PENDIENTE` en `despachos`.
 - **Duplicados:** un reenvío idéntico del mismo chat (mismo medicamento y cantidad dentro de 2 minutos) devuelve la reserva existente y no escribe nada.
@@ -67,7 +71,7 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 
 ### Notas sobre US-06 (`US-06-trazabilidad.json`)
 
-- **Webhook propio:** `POST telegram-trazabilidad`. El router de intenciones enviará aquí las consultas de estado (RUT o `#FAR-XXXX`); RF-07 vive en este flujo en lugar de dentro de `consulta-stock` para no arrastrar la lógica de catálogo a una consulta que no necesita catálogo.
+- **Entrada:** el router (US-17) la invoca cuando el mensaje trae un código `FAR-XXXX` o un RUT; RF-07 vive en este flujo para no arrastrar la lógica de catálogo a una consulta que no la necesita.
 - **Precedencia de identificador:** si el mensaje trae código, se busca solo por código; si no, por RUT tomando el pedido más reciente. Nunca se inventa estado, precio ni stock.
 - **Prueba local:** `node scripts/test-trazabilidad.mjs` (Node ≥ 18, sin dependencias).
 
@@ -95,7 +99,7 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 ### Notas sobre US-20 (`US-20-aprobacion-recetas.json`)
 
 - **Comandos de aprobación:** el farmacéutico autorizado responde a la notificación con `aprobar FAR-XXXX` o `rechazar FAR-XXXX [motivo]`. El chat debe estar en `TELEGRAM_PHARMACIST_CHAT_IDS`; cualquier otro chat se descarta en silencio (no hay respuesta a terceros).
-- **Webhook propio:** `POST telegram-aprobacion`. El router de intenciones (US-17) despachará aquí los comandos; hasta que exista, el webhook recibe las peticiones directamente.
+- **Entrada:** el router (US-17) deriva aquí los comandos de los chats autorizados. Tras aplicar la transición, confirma al farmacéutico y avisa al vecino.
 - **Idempotencia:** el estado de origen manda. Repetir `aprobar` o `rechazar` sobre una orden que ya salió de `RECETA_RECIBIDA` no escribe nada y nunca libera stock dos veces.
 - **Prueba local:** `node scripts/test-aprobacion.mjs` (Node ≥ 18, sin dependencias).
 

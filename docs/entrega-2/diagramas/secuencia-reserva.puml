@@ -1,0 +1,33 @@
+@startuml secuencia-reserva
+!include estilo.iuml
+title Secuencia · Reserva con código #FAR y descuento inmediato (US-05)
+
+actor Vecino
+participant "Telegram" as TG
+participant "Router\nUS-17" as R
+participant "Reserva\nUS-05" as RES
+database "Google Sheets" as S
+
+Vecino -> TG : «reservar neurogab 75 x1 rut 11.111.111-1,\nAv. Grecia 8735, Peñalolén Alto»
+TG -> R : webhook (secreto)
+R -> R : esReserva() + normalizarReserva()
+R -> RES : Execute Workflow (espera el resultado)
+activate RES
+note over R, S : n8n procesa una ejecución de producción a la vez:\nninguna otra reserva lee el inventario hasta que esta termine (RNF-04)
+RES -> RES : parse_reservation(): cantidad, RUT,\ndirección y sector (cobertura Peñalolén)
+RES -> S : leer catalogo, inventario, ordenes
+S --> RES : filas
+RES -> RES : evaluate_reservation():\n· duplicado < 2 min → devuelve el existente\n· cantidad ≤ disponible\n· código FAR siguiente\n· D-01: con receta → PENDIENTE_RECETA (+12 h)\n          sin receta → EN_PREPARACION
+alt COMMIT
+  RES -> S : append ordenes (FAR-0001)
+  RES -> S : update inventario (stock_reservado + cantidad)
+  RES -> S : append bitacora RESERVA_ALTA (actor cliente:<chat_id>)
+  RES -> S : append despachos (PENDIENTE)
+  RES -> S : verify_reservation (relee el inventario)
+  RES -> TG : «Reserva confirmada. Tu código es #FAR-0001 — …\nSu pedido quedó reservado por 12 horas. Envíe la foto…»
+else rechazo (sin stock, sin RUT, fuera de cobertura)
+  RES -> TG : mensaje guía, sin escribir nada
+end
+deactivate RES
+TG -> Vecino : respuesta
+@enduml
