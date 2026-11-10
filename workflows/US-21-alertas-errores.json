@@ -1,4 +1,5 @@
 {
+  "id": "farmaciaUS21aler",
   "name": "US-21 Alertas de error",
   "nodes": [
     {
@@ -15,7 +16,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * US-21 — build_alert.\n *\n * Formats ONE actionable alert from the n8n Error Trigger payload: workflow,\n * execution id, failing node, error message (truncated, single line) and the\n * execution URL. Never includes credentials, RUT, addresses or recipe contents:\n * the Error Trigger payload carries workflow metadata only.\n * When TELEGRAM_ADMIN_CHAT_ID is missing the item is dropped (executions stay\n * in the n8n list) — the runbook explains the fallback.\n */\nfunction truncateText(value, max) {\n  const text = String(value === null || value === undefined ? '' : value);\n  if (text.length <= max) return text;\n  return text.slice(0, max - 3) + '...';\n}\n\nfunction collapseWhitespace(value) {\n  return String(value === null || value === undefined ? '' : value)\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction buildErrorAlert(input) {\n  const source = input && typeof input === 'object' ? input : {};\n  const wf = source.workflow && typeof source.workflow === 'object' ? source.workflow : {};\n  const ex = source.execution && typeof source.execution === 'object' ? source.execution : {};\n  const rawError = ex.error;\n  const err = rawError && typeof rawError === 'object' ? rawError : {};\n  const name = wf.name ? String(wf.name) : 'workflow desconocido';\n  const execId = ex.id !== undefined && ex.id !== null ? String(ex.id) : 'sin id';\n  let node = '';\n  if (err.node && typeof err.node === 'object' && err.node.name) node = String(err.node.name);\n  else if (typeof err.node === 'string') node = err.node;\n  else if (err.nodeName) node = String(err.nodeName);\n  const message = truncateText(\n    collapseWhitespace(typeof rawError === 'string' ? rawError : err.message || 'sin mensaje'),\n    300\n  );\n  let text = 'ALERTA n8n: el workflow \"' + name + '\" falló (ejecución ' + execId + ').';\n  if (node) text += ' Nodo: ' + node + '.';\n  text += ' Error: ' + message + '.';\n  if (ex.url) text += ' Revisar: ' + collapseWhitespace(ex.url) + '.';\n  return text;\n}\n\nfunction buildAlertItem(input, adminChatId) {\n  const chat = adminChatId === null || adminChatId === undefined ? '' : String(adminChatId).trim();\n  if (chat === '') return null;\n  return { chat_id: chat, severity: 'CRITICAL', message: buildErrorAlert(input) };\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  const items = $input.all();\n  const out = [];\n  for (let i = 0; i < items.length; i++) {\n    const json = items[i] && items[i].json ? items[i].json : items[i];\n    const item = buildAlertItem(json, process.env.TELEGRAM_ADMIN_CHAT_ID);\n    if (item) out.push({ json: item });\n  }\n  return out;\n}"
+        "jsCode": "/**\n * US-21 — build_alert.\n *\n * Formats ONE actionable alert from the n8n Error Trigger payload: workflow,\n * execution id, failing node, error message (truncated, single line) and the\n * execution URL. Never includes credentials, RUT, addresses or recipe contents:\n * the Error Trigger payload carries workflow metadata only.\n * When TELEGRAM_ADMIN_CHAT_ID is missing the item is dropped (executions stay\n * in the n8n list) — the runbook explains the fallback.\n */\nfunction truncateText(value, max) {\n  const text = String(value === null || value === undefined ? '' : value);\n  if (text.length <= max) return text;\n  return text.slice(0, max - 3) + '...';\n}\n\nfunction collapseWhitespace(value) {\n  return String(value === null || value === undefined ? '' : value)\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction buildErrorAlert(input) {\n  const source = input && typeof input === 'object' ? input : {};\n  const wf = source.workflow && typeof source.workflow === 'object' ? source.workflow : {};\n  const ex = source.execution && typeof source.execution === 'object' ? source.execution : {};\n  const rawError = ex.error;\n  const err = rawError && typeof rawError === 'object' ? rawError : {};\n  const name = wf.name ? String(wf.name) : 'workflow desconocido';\n  const execId = ex.id !== undefined && ex.id !== null ? String(ex.id) : 'sin id';\n  let node = '';\n  if (err.node && typeof err.node === 'object' && err.node.name) node = String(err.node.name);\n  else if (typeof err.node === 'string') node = err.node;\n  else if (err.nodeName) node = String(err.nodeName);\n  const message = truncateText(\n    collapseWhitespace(typeof rawError === 'string' ? rawError : err.message || 'sin mensaje'),\n    300\n  );\n  let text = 'ALERTA n8n: el workflow \"' + name + '\" falló (ejecución ' + execId + ').';\n  if (node) text += ' Nodo: ' + node + '.';\n  text += ' Error: ' + message + '.';\n  if (ex.url) text += ' Revisar: ' + collapseWhitespace(ex.url) + '.';\n  return text;\n}\n\nfunction buildAlertItem(input, adminChatId) {\n  const chat = adminChatId === null || adminChatId === undefined ? '' : String(adminChatId).trim();\n  if (chat === '') return null;\n  return { chat_id: chat, severity: 'CRITICAL', message: buildErrorAlert(input) };\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  const items = $input.all();\n  const out = [];\n  for (let i = 0; i < items.length; i++) {\n    const json = items[i] && items[i].json ? items[i].json : items[i];\n    const item = buildAlertItem(json, $env.TELEGRAM_ADMIN_CHAT_ID);\n    if (item) out.push({ json: item });\n  }\n  return out;\n}"
       },
       "name": "build_alert",
       "type": "n8n-nodes-base.code",
@@ -29,10 +30,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.message }) }}",
         "options": {}
       },
       "name": "send_alert",
@@ -81,6 +82,6 @@
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "versionId": "3f2a7c9e-6d1b-4a8f-b2c3-5e7d9f1a2b4c",
+  "versionId": "c7aa3fc4-aa79-4417-a005-61d8ee4a87e0",
   "tags": []
 }
