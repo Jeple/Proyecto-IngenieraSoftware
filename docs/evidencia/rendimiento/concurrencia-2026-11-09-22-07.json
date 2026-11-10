@@ -1,0 +1,31 @@
+{
+  "fecha": "2026-11-09T22:07:31.507Z",
+  "medicamento": "MED-0009",
+  "stock_real": 3,
+  "solicitudes": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "reservas_creadas": [
+    {
+      "codigo": "FAR-0901",
+      "cantidad": 2,
+      "estado": "PENDIENTE_RECETA"
+    },
+    {
+      "codigo": "FAR-0902",
+      "cantidad": 1,
+      "estado": "PENDIENTE_RECETA"
+    }
+  ],
+  "stock_reservado_final": 3,
+  "suma_reservada": 3,
+  "filas_bitacora": 2,
+  "sobreventa": 0,
+  "actualizaciones_perdidas": false,
+  "duracion_s": 47,
+  "cumple": true
+}

@@ -6,12 +6,14 @@ on:
       - "workflows/**"
       - "scripts/**"
       - "pwa/**"
+      - "docker-compose.yml"
       - ".github/workflows/validate-workflows.yml"
   pull_request:
     paths:
       - "workflows/**"
       - "scripts/**"
       - "pwa/**"
+      - "docker-compose.yml"
       - ".github/workflows/validate-workflows.yml"
 
 jobs:
@@ -20,6 +22,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Versión de Node fijada (control de configuración; las pruebas usan Node >= 18).
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Escaneo de secretos y RUT (mismo script que se corre en local).
+      - name: Check secrets
+        run: bash scripts/check_secrets.sh
 
       # Dependency-free: uses only Node.js (preinstalled on ubuntu-latest).
       - name: Validate workflow JSON files
@@ -99,6 +111,19 @@ jobs:
       - name: Run US-09 email recipe tests
         run: node scripts/test-recetas-email.mjs
 
+      # US-17: router de intenciones + pruebas de contrato con US-04/05/06/20/22.
+      - name: Run US-17 router tests
+        run: node scripts/test-router.mjs
+
+      # US-22: despacho marcado por el personal + aviso al farmacéutico (US-09).
+      - name: Run US-22 dispatch tests
+        run: node scripts/test-despacho.mjs
+
+      # Reglas estáticas para n8n 2.44.2 real (env, expresiones, credenciales,
+      # versiones de nodo, webhook único, imagen fijada).
+      - name: Run n8n workflow convention tests
+        run: node scripts/test-workflows-n8n.mjs
+
       - name: Warn when workflows/ has no JSON files yet
         run: |
           count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)
@@ -107,3 +132,25 @@ jobs:
           else
             echo "Found $count workflow JSON file(s)."
           fi
+
+  # Integración con n8n REAL (misma imagen fijada) y Telegram simulado: importa y
+  # publica los 9 flujos, envía updates al webhook único y verifica respuestas,
+  # derivación a subflujos y alertas US-21. No usa credenciales reales.
+  integracion-n8n:
+    runs-on: ubuntu-latest
+    needs: validate-json
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pull n8n image
+        run: docker pull n8nio/n8n:2.44.2
+
+      - name: Run integration test
+        run: node scripts/local/prueba-integracion.mjs --n 20

@@ -1,0 +1,142 @@
+{
+  "fecha": "2026-11-09T21:59:55.666Z",
+  "resumen": "15/17",
+  "resultados": [
+    {
+      "id": "CA-09",
+      "caso": "Bienvenida /start",
+      "resultado": "Pasa",
+      "detalle": "553 ms",
+      "ms": 3669,
+      "fecha": "2026-11-09T21:59:59.337Z"
+    },
+    {
+      "id": "CA-01",
+      "caso": "Consulta con stock (losartan 50)",
+      "resultado": "Pasa",
+      "detalle": "4473 ms · «Losarmed 50 mg — $4.990 c/u. Stock disponible: 92 unidades.»",
+      "ms": 7716,
+      "fecha": "2026-11-09T22:00:15.064Z"
+    },
+    {
+      "id": "CA-02",
+      "caso": "Agotado con error de escritura → bioequivalente",
+      "resultado": "Pasa",
+      "detalle": "1687 ms · «Pregalex 75 mg — $8.990 c/u. Stock disponible: 0 unidades. Producto agotado temporalmente. Bioequivalentes dis»",
+      "ms": 4905,
+      "fecha": "2026-11-09T22:00:27.974Z"
+    },
+    {
+      "id": "CA-03",
+      "caso": "Fuera de catálogo: no inventa",
+      "resultado": "Pasa",
+      "detalle": "2020 ms",
+      "ms": 5127,
+      "fecha": "2026-11-09T22:00:41.114Z"
+    },
+    {
+      "id": "CA-10",
+      "caso": "Urgencia y pregunta clínica",
+      "resultado": "Pasa",
+      "detalle": "274 ms / 226 ms",
+      "ms": 6923,
+      "fecha": "2026-11-09T22:00:56.047Z"
+    },
+    {
+      "id": "CA-11",
+      "caso": "Sin secreto: se descarta",
+      "resultado": "Pasa",
+      "detalle": "sin respuesta (correcto)",
+      "ms": 4144,
+      "fecha": "2026-11-09T22:01:08.220Z"
+    },
+    {
+      "id": "CA-04",
+      "caso": "Reserva con receta → #FAR-0001 PENDIENTE_RECETA, +1 reservado, 12 h",
+      "resultado": "Pasa",
+      "detalle": "8213 ms · estado=PENDIENTE_RECETA · expira en 12.00 h · reservado=1 · bitácora=1 · despacho=PENDIENTE",
+      "ms": 13809,
+      "fecha": "2026-11-09T22:01:30.031Z"
+    },
+    {
+      "id": "CA-05",
+      "caso": "Reserva sin receta → EN_PREPARACION",
+      "resultado": "Pasa",
+      "detalle": "estado=EN_PREPARACION",
+      "ms": 14447,
+      "fecha": "2026-11-09T22:01:52.482Z"
+    },
+    {
+      "id": "CA-06",
+      "caso": "Fuera de cobertura y sin stock: rechazo sin escribir",
+      "resultado": "Pasa",
+      "detalle": "filas 2→2 · «Por ahora la entrega a domicilio cubre solo los sectores Peñ» · «Pregalex 75 mg — $8.990 c/u. Stock disponible: 0 unidades. P»",
+      "ms": 12160,
+      "fecha": "2026-11-09T22:02:12.648Z"
+    },
+    {
+      "id": "CA-07",
+      "caso": "Estado por RUT del titular",
+      "resultado": "Falla",
+      "detalle": "«No encontré ese pedido. Revisa el código #FAR-XXXX o tu RUT e inténtalo de nuevo.»",
+      "ms": 4824,
+      "fecha": "2026-11-09T22:02:25.486Z"
+    },
+    {
+      "id": "CA-08",
+      "caso": "Titularidad: otro chat no ve el pedido",
+      "resultado": "Pasa",
+      "detalle": "«No encontré ese pedido. Revisa el código #FAR-XXXX o tu RUT e inténtalo de nuevo»",
+      "ms": 4618,
+      "fecha": "2026-11-09T22:02:38.113Z"
+    },
+    {
+      "id": "CA-14",
+      "caso": "Aprobación farmacéutica (receta simulada en la planilla)",
+      "resultado": "Pasa",
+      "detalle": "estado=EN_PREPARACION · actor=farmaceutico:<chat_id> · respuestas=2",
+      "ms": 9388,
+      "fecha": "2026-11-09T22:02:55.517Z"
+    },
+    {
+      "id": "CA-15",
+      "caso": "Rechazo libera el stock una sola vez",
+      "resultado": "Pasa",
+      "detalle": "FAR-0003: reservado 1→0→0",
+      "ms": 29437,
+      "fecha": "2026-11-09T22:03:32.969Z"
+    },
+    {
+      "id": "CA-17",
+      "caso": "En ruta: aviso al vecino y estado actualizado",
+      "resultado": "Falla",
+      "detalle": "orden=EN_RUTA · despacho=EN_RUTA",
+      "ms": 14700,
+      "fecha": "2026-11-09T22:03:55.679Z"
+    },
+    {
+      "id": "CA-18",
+      "caso": "Entregado: descuenta real y reservado una sola vez",
+      "resultado": "Pasa",
+      "detalle": "real 65→64→64 · reservado 1→0→0",
+      "ms": 20934,
+      "fecha": "2026-11-09T22:04:24.618Z"
+    },
+    {
+      "id": "CA-16",
+      "caso": "Expiración a 12 h (cron ejecutado a demanda)",
+      "resultado": "Pasa",
+      "detalle": "estado=CANCELADO_EXPIRADO · reservado=0 · 5841 ms",
+      "ms": 12476,
+      "fecha": "2026-11-09T22:04:45.095Z"
+    },
+    {
+      "id": "CA-19",
+      "caso": "Falla de un subflujo → alerta y aviso al vecino",
+      "resultado": "Pasa",
+      "detalle": "2 mensajes",
+      "ms": 15694,
+      "fecha": "2026-11-09T22:05:08.791Z"
+    }
+  ]
+}
