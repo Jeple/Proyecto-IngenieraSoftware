@@ -33,32 +33,51 @@ export function limpiarSalida(texto) {
 
 export const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Espera a que n8n termine las migraciones (readiness = 200). */
-export async function esperarListo(baseUrl, timeoutMs = 180000) {
+/** Límite de cada intento HTTP: una conexión que no responde no bloquea la espera. */
+const LIMITE_INTENTO_MS = 5000;
+
+/** Motivo breve de un intento fallido (sin URLs ni cuerpos). */
+const motivo = (e) => (e && e.cause && e.cause.code) || (e && e.name) || 'error';
+
+/**
+ * Espera a que n8n termine las migraciones (readiness = 200).
+ * `avisar` recibe un mensaje de avance cada 15 s con el resultado del último intento.
+ */
+export async function esperarListo(baseUrl, timeoutMs = 180000, avisar = () => {}) {
   const t0 = Date.now();
+  let ultimo = 'sin intentos';
+  let proximoAviso = 15000;
   while (Date.now() - t0 < timeoutMs) {
     try {
-      const r = await fetch(baseUrl + '/healthz/readiness');
+      const r = await fetch(baseUrl + '/healthz/readiness', { signal: AbortSignal.timeout(LIMITE_INTENTO_MS) });
       if (r.status === 200) return Date.now() - t0;
-    } catch (e) { /* aún no levanta */ }
+      ultimo = 'HTTP ' + r.status;
+    } catch (e) { ultimo = motivo(e); }
+    if (Date.now() - t0 >= proximoAviso) {
+      avisar(`esperando a n8n: ${Math.round((Date.now() - t0) / 1000)} s (último intento: ${ultimo})`);
+      proximoAviso += 15000;
+    }
     await esperar(1500);
   }
-  throw new Error('n8n no quedó listo en ' + Math.round(timeoutMs / 1000) + ' s (' + baseUrl + ')');
+  throw new Error(`n8n no quedó listo en ${Math.round(timeoutMs / 1000)} s (${baseUrl}; último intento: ${ultimo})`);
 }
 
 /** Espera a que el webhook público quede registrado (deja de responder 404). */
 export async function esperarWebhook(baseUrl, path, timeoutMs = 60000) {
   const t0 = Date.now();
+  let ultimo = 'sin intentos';
   while (Date.now() - t0 < timeoutMs) {
     try {
       const r = await fetch(baseUrl + '/webhook/' + path, {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+        signal: AbortSignal.timeout(LIMITE_INTENTO_MS)
       });
       if (r.status !== 404) return Date.now() - t0;
-    } catch (e) { /* reintenta */ }
+      ultimo = 'HTTP 404';
+    } catch (e) { ultimo = motivo(e); }
     await esperar(1000);
   }
-  throw new Error('El webhook /webhook/' + path + ' no quedó registrado');
+  throw new Error(`El webhook /webhook/${path} no quedó registrado (último intento: ${ultimo})`);
 }
 
 /**

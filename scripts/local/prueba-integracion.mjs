@@ -103,12 +103,14 @@ const CASOS = [
 
 async function main() {
   const inicio = new Date();
-  const docker = sh('docker', ['info', '--format', '{{.ServerVersion}}']);
+  const docker = sh('docker', ['info', '--format', '{{.ServerVersion}}'], { timeout: 60000 });
   if (docker.code !== 0) throw new Error('Docker no está en ejecución. Abra Docker Desktop y reintente.');
   await new Promise((r) => mock.listen(PUERTO_MOCK, '0.0.0.0', r));
-  console.log(`Telegram simulado en :${PUERTO_MOCK}. Levantando ${N8N_IMAGEN} ...`);
+  console.log(`Telegram simulado en :${PUERTO_MOCK}. Docker ${docker.out.trim().split('\n')[0]}. Levantando ${N8N_IMAGEN} ...`);
 
-  sh('docker', ['rm', '-f', CONTENEDOR]);
+  // Cada comando de Docker tiene límite: si uno se cuelga, la prueba falla con el paso exacto.
+  const tRun = Date.now();
+  sh('docker', ['rm', '-f', CONTENEDOR], { timeout: 60000 });
   const run = sh('docker', ['run', '-d', '--name', CONTENEDOR, '-p', `127.0.0.1:${PUERTO_N8N}:5678`,
     '--add-host=host.docker.internal:host-gateway',
     '-e', 'N8N_ENCRYPTION_KEY=clave-de-prueba-integracion-0123456789',
@@ -125,10 +127,11 @@ async function main() {
     '-e', `TELEGRAM_ADMIN_CHAT_ID=${ADMIN}`,
     '-e', 'GOOGLE_SHEET_ID=planilla-falsa',
     '-e', 'GOOGLE_DRIVE_RECETAS_FOLDER_ID=carpeta-falsa',
-    N8N_IMAGEN]);
+    N8N_IMAGEN], { timeout: 180000 });
   if (run.code !== 0) throw new Error('No se pudo iniciar n8n: ' + limpiarSalida(run.out));
+  console.log(`Contenedor creado en ${Math.round((Date.now() - tRun) / 1000)} s. Esperando a que n8n arranque...`);
 
-  const tListo = await esperarListo(BASE);
+  const tListo = await esperarListo(BASE, 180000, (m) => console.log('  ' + m));
   console.log(`n8n listo en ${Math.round(tListo / 1000)} s. Importando la credencial falsa y los ${FLUJOS.length} flujos...`);
   // Credencial falsa a propósito: no es una clave (el nodo de Sheets falla al firmar).
   const credFalsa = [{ id: 'farmaciaGoogleSA', name: 'Google (cuenta de servicio)', type: 'googleApi',
@@ -138,11 +141,13 @@ async function main() {
   const imp = importarYPublicar(CONTENEDOR, REPO, credFalsa, (m) => console.log('  ' + m));
   console.log(`Importados: ${imp.importados}/${FLUJOS.length}; publicados: ${imp.publicados.length}/${FLUJOS.length}`);
   if (imp.errores.length) console.log('Errores de importación:\n  ' + imp.errores.join('\n  '));
-  sh('docker', ['restart', CONTENEDOR]);
-  await esperarListo(BASE);
+  const reinicio = sh('docker', ['restart', CONTENEDOR], { timeout: 120000 });
+  if (reinicio.code !== 0) throw new Error('No se pudo reiniciar n8n: ' + limpiarSalida(reinicio.out));
+  console.log('n8n reiniciado para activar los flujos publicados. Esperando el webhook...');
+  await esperarListo(BASE, 180000, (m) => console.log('  ' + m));
   await esperarWebhook(BASE, WEBHOOK_PATH);
   console.log('Webhook del router activo. Ejecutando los casos...');
-  const version = limpiarSalida(sh('docker', ['exec', CONTENEDOR, 'n8n', '--version']).out).trim();
+  const version = limpiarSalida(sh('docker', ['exec', CONTENEDOR, 'n8n', '--version'], { timeout: 60000 }).out).trim();
 
   // Casos funcionales
   const resultados = [];

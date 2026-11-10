@@ -137,7 +137,10 @@ jobs:
   # publica los 9 flujos, envía updates al webhook único y verifica respuestas,
   # derivación a subflujos y alertas US-21. No usa credenciales reales.
   integracion-n8n:
-    runs-on: ubuntu-latest
+    # Runner fijado (control de configuración). Desde el 19-oct-2026 «ubuntu-latest»
+    # apunta a Ubuntu 26; las dos primeras corridas de este job (10-nov) se cortaron
+    # por tiempo al levantar n8n allí, sin llegar a «n8n listo». 24.04 es la imagen LTS estable.
+    runs-on: ubuntu-24.04
     needs: validate-json
     timeout-minutes: 25
     steps:
@@ -150,7 +153,19 @@ jobs:
           node-version: "20"
 
       - name: Pull n8n image
-        run: docker pull n8nio/n8n:2.44.2
+        run: |
+          docker version --format 'Docker cliente {{.Client.Version}}, servidor {{.Server.Version}}'
+          docker pull n8nio/n8n:2.44.2
 
+      # Límite propio del paso: si se excede, el paso falla y el diagnóstico de abajo alcanza a correr.
       - name: Run integration test
+        timeout-minutes: 15
         run: node scripts/local/prueba-integracion.mjs --n 20
+
+      # Solo si falla o se corta: estado del contenedor, log de n8n y readiness.
+      - name: Diagnóstico de n8n
+        if: failure() || cancelled()
+        run: |
+          docker ps -a --filter name=farmacia-n8n-integracion
+          docker logs --tail 80 farmacia-n8n-integracion 2>&1 || true
+          curl -sS -m 5 -o /dev/null -w 'readiness: HTTP %{http_code}\n' http://127.0.0.1:5690/healthz/readiness || true
