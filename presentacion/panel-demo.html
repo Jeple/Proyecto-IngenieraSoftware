@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de demostración — Farmacia Comunitaria de Peñalolén</title>
+<style>
+  :root { --green:#0f5132; --green2:#1a7f37; --bg:#f4f7f5; --card:#ffffff; --ink:#1c2126; --muted:#5b6670; --line:#e3e9e5; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:linear-gradient(135deg, #0f5132, #14684a); color:#fff; padding:28px 36px 22px; }
+  header h1 { margin:6px 0 4px; font-size:26px; letter-spacing:.2px; }
+  header p { margin:0; opacity:.9; font-size:14.5px; }
+  .badge { display:inline-block; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); border-radius:999px; padding:3px 12px; font-size:12px; letter-spacing:.4px; }
+  main { max-width:1080px; margin:0 auto; padding:22px 24px 10px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px; margin-bottom:18px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .kpi-num { display:block; font-size:26px; font-weight:700; color:var(--green); line-height:1.15; }
+  .kpi-label { display:block; margin-top:4px; font-size:13px; color:var(--muted); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-bottom:18px; }
+  .card h2 { margin:0 0 12px; font-size:16.5px; color:var(--green); }
+  .states { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:9px; }
+  .chip { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13.5px; background:#fbfdfc; }
+  .chip .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .chip-count { font-weight:700; }
+  .flow { margin:0; padding-left:20px; font-size:14px; line-height:1.55; color:#2a3238; }
+  .flow li { margin-bottom:7px; }
+  .timeline { list-style:none; margin:0; padding:0; }
+  .tl-item { display:flex; gap:10px; align-items:flex-start; padding:7px 0; border-bottom:1px dashed var(--line); font-size:14px; }
+  .tl-item:last-child { border-bottom:0; }
+  .tl-dot { width:9px; height:9px; border-radius:50%; margin-top:5px; flex:0 0 auto; }
+  .tl-date { color:var(--muted); margin-left:9px; font-size:12.5px; }
+  .mono { font-family:Consolas, Menlo, monospace; font-size:12.5px; color:#444f57; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:.4px; }
+  td.num, th.num { text-align:right; }
+  .pinc { color:var(--muted); font-size:12.5px; }
+  .note p { margin:0 0 8px; font-size:14px; line-height:1.55; }
+  footer { text-align:center; color:var(--muted); font-size:12.5px; padding:14px 20px 26px; }
+  @media print { body { background:#fff; } .card, .kpi { box-shadow:none; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="badge">Demostración con datos sintéticos</span>
+  <h1>Farmacia Comunitaria de Peñalolén</h1>
+  <p>Panel gerencial del sistema de atención omnicanal — resumen de la operación simulada (consulta, reserva, seguimiento y recetas).</p>
+</header>
+<main>
+  <section class="kpis">
+    <div class="kpi"><span class="kpi-num">13</span><span class="kpi-label">pedidos procesados</span></div>
+    <div class="kpi"><span class="kpi-num">$193.750</span><span class="kpi-label">en pedidos (CLP)</span></div>
+    <div class="kpi"><span class="kpi-num">16</span><span class="kpi-label">medicamentos en catálogo</span></div>
+    <div class="kpi"><span class="kpi-num">29</span><span class="kpi-label">movimientos auditados</span></div>
+    <div class="kpi"><span class="kpi-num">266</span><span class="kpi-label">pruebas automáticas en verde</span></div>
+  </section>
+  <section class="grid2">
+    <div class="card">
+      <h2>Pedidos por estado</h2>
+      <ul class="states">
+        <li class="chip"><span class="dot" style="background:#bc4c00"></span><span class="chip-name">PENDIENTE_RECETA</span><span class="chip-count">2</span></li>
+        <li class="chip"><span class="dot" style="background:#8250df"></span><span class="chip-name">RECETA_RECIBIDA</span><span class="chip-count">2</span></li>
+        <li class="chip"><span class="dot" style="background:#9a6700"></span><span class="chip-name">EN_PREPARACION</span><span class="chip-count">1</span></li>
+        <li class="chip"><span class="dot" style="background:#0969da"></span><span class="chip-name">EN_RUTA</span><span class="chip-count">2</span></li>
+        <li class="chip"><span class="dot" style="background:#1a7f37"></span><span class="chip-name">ENTREGADO</span><span class="chip-count">4</span></li>
+        <li class="chip"><span class="dot" style="background:#6e7781"></span><span class="chip-name">CANCELADO_EXPIRADO</span><span class="chip-count">2</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Cómo funciona</h2>
+      <ol class="flow">
+        <li><b>El vecino escribe</b> por mensajería (Telegram en el prototipo; WhatsApp en la siguiente fase).</li>
+        <li><b>El sistema entiende</b> aunque haya errores de escritura y datos siempre de la planilla oficial.</li>
+        <li><b>Consulta o reserva:</b> descuenta stock al instante y entrega un código <span class="mono">#FAR-XXXX</span>.</li>
+        <li><b>Responde y registra:</b> cada movimiento y cambio de estado queda auditado.</li>
+      </ol>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Últimos movimientos (bitácora)</h2>
+    <ul class="timeline">
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Pregalex 150 mg × 1 · <span class="mono">FAR-0012</span><span class="tl-date">15 oct 09:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Lexamind 10 mg × 1 · <span class="mono">FAR-0012</span><span class="tl-date">15 oct 09:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Somnia 3 mg × 2 · <span class="mono">FAR-0011</span><span class="tl-date">15 oct 08:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Vitalmax Adultos × 1 · <span class="mono">FAR-0011</span><span class="tl-date">15 oct 08:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Neurogab 150 mg × 1 · <span class="mono">FAR-0010</span><span class="tl-date">15 oct 04:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Cardiosar 50 mg × 1 · <span class="mono">FAR-0010</span><span class="tl-date">15 oct 04:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Lexamind 20 mg × 1 · <span class="mono">FAR-0013</span><span class="tl-date">14 oct 18:00</span></div></li>
+        <li class="tl-item"><span class="tl-dot" style="background:#1a7f37"></span><div class="tl-body"><b>Reserva confirmada</b> — Artrocel 200 mg × 2 · <span class="mono">FAR-0009</span><span class="tl-date">14 oct 16:00</span></div></li>
+    </ul>
+  </section>
+  <section class="card">
+    <h2>Catálogo y stock disponible</h2>
+    <table>
+      <thead><tr><th>Medicamento</th><th>Requiere receta</th><th class="num">Precio</th><th class="num">Disponible</th></tr></thead>
+      <tbody>
+          <tr><td><b>Pregalex 75 mg</b><div class="pinc">Pregabalina</div></td><td>Sí</td><td class="num">$8.990</td><td class="num"><b>65</b></td></tr>
+          <tr><td><b>Neurogab 75 mg</b><div class="pinc">Pregabalina</div></td><td>Sí</td><td class="num">$7.490</td><td class="num"><b>64</b></td></tr>
+          <tr><td><b>Pregalex 150 mg</b><div class="pinc">Pregabalina</div></td><td>Sí</td><td class="num">$12.990</td><td class="num"><b>95</b></td></tr>
+          <tr><td><b>Neurogab 150 mg</b><div class="pinc">Pregabalina</div></td><td>Sí</td><td class="num">$10.990</td><td class="num"><b>100</b></td></tr>
+          <tr><td><b>Somnia 3 mg</b><div class="pinc">Melatonina</div></td><td>—</td><td class="num">$5.990</td><td class="num"><b>37</b></td></tr>
+          <tr><td><b>Melaton 3 mg</b><div class="pinc">Melatonina</div></td><td>—</td><td class="num">$4.990</td><td class="num"><b>45</b></td></tr>
+          <tr><td><b>Vitalmax Adultos</b><div class="pinc">Multivitamínico</div></td><td>—</td><td class="num">$9.990</td><td class="num"><b>41</b></td></tr>
+          <tr><td><b>Multivit Plus Adultos</b><div class="pinc">Multivitamínico</div></td><td>—</td><td class="num">$8.490</td><td class="num"><b>116</b></td></tr>
+          <tr><td><b>Celoxib 200 mg</b><div class="pinc">Celecoxib</div></td><td>Sí</td><td class="num">$7.990</td><td class="num"><b>64</b></td></tr>
+          <tr><td><b>Artrocel 200 mg</b><div class="pinc">Celecoxib</div></td><td>Sí</td><td class="num">$6.990</td><td class="num"><b>105</b></td></tr>
+          <tr><td><b>Losarmed 50 mg</b><div class="pinc">Losartán</div></td><td>Sí</td><td class="num">$4.990</td><td class="num"><b>92</b></td></tr>
+          <tr><td><b>Cardiosar 50 mg</b><div class="pinc">Losartán</div></td><td>Sí</td><td class="num">$3.990</td><td class="num"><b>89</b></td></tr>
+          <tr><td><b>Esciprax 10 mg</b><div class="pinc">Escitalopram</div></td><td>Sí</td><td class="num">$6.490</td><td class="num"><b>112</b></td></tr>
+          <tr><td><b>Lexamind 10 mg</b><div class="pinc">Escitalopram</div></td><td>Sí</td><td class="num">$5.490</td><td class="num"><b>119</b></td></tr>
+          <tr><td><b>Esciprax 20 mg</b><div class="pinc">Escitalopram</div></td><td>Sí</td><td class="num">$9.490</td><td class="num"><b>89</b></td></tr>
+          <tr><td><b>Lexamind 20 mg</b><div class="pinc">Escitalopram</div></td><td>Sí</td><td class="num">$7.990</td><td class="num"><b>68</b></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="card note">
+    <h2>Qué mirar</h2>
+    <p>Los números de arriba salen de los datos sintéticos versionados en el repositorio: son los mismos con los que se prueban los flujos, para que nadie vea información de pacientes reales.</p>
+    <p>En operación, esta información vive en la planilla conectada al bot: el stock baja al reservar, cada receta espera la validación del químico farmacéutico y todo movimiento queda auditado.</p>
+    <p>Para ver el sistema por dentro: abrir <b>presentacion/mapa-workflows.html</b> — cada flujo dibujado paso a paso, caja por caja. ¿La app real de n8n? Instrucciones en <b>presentacion/n8n-demo/LEEME.md</b> (Docker o Node).</p>
+    <p>Avance del proyecto: 8 flujos de n8n y la PWA del conductor, con <b>266 pruebas automáticas</b> en verde en cada cambio. En cierre: validación final en el entorno real y documentos de entrega.</p>
+  </section>
+</main>
+<footer>Datos sintéticos generados desde data/seed · Proyecto Ingeniería de Software · Grupo 10</footer>
+</body>
+</html>

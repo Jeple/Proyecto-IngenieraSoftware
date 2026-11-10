@@ -1,0 +1,517 @@
+{
+  "name": "US-10 Cron de Expiracion 12h",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "n01",
+      "name": "cron_hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "n02",
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:E"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "n03",
+      "name": "read_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "catalogo"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:I"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "n04",
+      "name": "read_catalogo",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "function toCount(value) {\n  const n = Math.trunc(Number(value));\n  return Number.isFinite(n) && n > 0 ? n : 0;\n}\n\nfunction isExpired(order, now) {\n  if (!order || order.estado !== 'PENDIENTE_RECETA') return false;\n  const raw = order.fecha_expiracion;\n  if (raw === null || raw === undefined || raw === '') return false;\n  const expiresAt = new Date(raw);\n  if (Number.isNaN(expiresAt.getTime())) return false;\n  const reference = now instanceof Date ? now : new Date(now);\n  if (Number.isNaN(reference.getTime())) return false;\n  return expiresAt.getTime() <= reference.getTime();\n}\n\nfunction selectExpiredOrders(orders, now) {\n  const source = Array.isArray(orders) ? orders : [];\n  return source.filter((order) => isExpired(order, now));\n}\n\nfunction findInventoryRow(inventoryRows, medicamentoId) {\n  const source = Array.isArray(inventoryRows) ? inventoryRows : [];\n  const key = String(medicamentoId);\n  return source.find((row) => row && String(row.medicamento_id) === key) || null;\n}\n\nfunction currentReserved(inventoryRows, medicamentoId) {\n  const row = findInventoryRow(inventoryRows, medicamentoId);\n  return row ? Math.max(0, toCount(row.stock_reservado)) : 0;\n}\n\nfunction aggregateInventoryUpdates(expiredOrders, inventoryRows, now) {\n  const nowIso = (now instanceof Date ? now : new Date(now)).toISOString();\n  const totals = new Map();\n  (expiredOrders || []).forEach((order) => {\n    const key = String(order.medicamento_id);\n    totals.set(key, (totals.get(key) || 0) + toCount(order.cantidad));\n  });\n  const updates = [];\n  totals.forEach((totalCantidad, key) => {\n    const row = findInventoryRow(inventoryRows, key);\n    if (!row) return;\n    const current = Math.max(0, toCount(row.stock_reservado));\n    const newReserved = Math.max(0, current - totalCantidad);\n    updates.push({\n      medicamento_id: row.medicamento_id,\n      stock_reservado: newReserved,\n      delta_reservado: newReserved - current,\n      clamped: totalCantidad > current,\n      ultima_actualizacion: nowIso,\n    });\n  });\n  return updates;\n}\n\nfunction distributeReleases(expiredOrders, inventoryRows) {\n  const releasedSoFar = new Map();\n  return (expiredOrders || []).map((order) => {\n    const key = String(order.medicamento_id);\n    const reserved = currentReserved(inventoryRows, key);\n    const wanted = toCount(order.cantidad);\n    const already = releasedSoFar.get(key) || 0;\n    const left = Math.max(0, reserved - already);\n    const released = Math.min(wanted, left);\n    releasedSoFar.set(key, already + released);\n    return { released: released, clamped: released < wanted };\n  });\n}\n\nfunction buildBitacoraRows(expiredOrders, inventoryRows, now) {\n  const nowIso = (now instanceof Date ? now : new Date(now)).toISOString();\n  const plan = distributeReleases(expiredOrders, inventoryRows);\n  return (expiredOrders || []).map((order, index) => {\n    const entry = plan[index];\n    let detalle =\n      'Expiracion 12h: liberadas ' +\n      entry.released +\n      ' de ' +\n      toCount(order.cantidad) +\n      ' unidades reservadas';\n    if (entry.clamped) detalle += '; CLAMP: stock_reservado insuficiente';\n    return {\n      timestamp: nowIso,\n      accion: 'EXPIRACION',\n      codigo_far: order.codigo_far,\n      medicamento_id: order.medicamento_id,\n      delta_reservado: -entry.released,\n      detalle: detalle,\n      estado_anterior: 'PENDIENTE_RECETA',\n      estado_nuevo: 'CANCELADO_EXPIRADO',\n      actor: 'sistema:cron',\n    };\n  });\n}\n\nfunction buildExpiryMessage(order, released, catalogRow) {\n  const code = order && order.codigo_far ? String(order.codigo_far) : '';\n  let message =\n    'Tu pedido #' +\n    code +\n    ' fue cancelado por falta de receta después de 12 horas.';\n  if (catalogRow && catalogRow.nombre_comercial) {\n    message +=\n      ' Liberamos ' +\n      released +\n      ' unidades de ' +\n      catalogRow.nombre_comercial +\n      ' al stock.';\n  }\n  return message;\n}\n\nfunction buildNotifications(expiredOrders, inventoryRows, catalogRows) {\n  const plan = distributeReleases(expiredOrders, inventoryRows);\n  const source = Array.isArray(catalogRows) ? catalogRows : [];\n  return (expiredOrders || []).map((order, index) => {\n    const key = String(order.medicamento_id);\n    const catalogRow =\n      source.find((row) => row && String(row.medicamento_id) === key) || null;\n    return {\n      // The `telefono` column stores the Telegram chat id captured at order\n      // creation (column name kept for the sheet schema); the payload field is chat_id.\n      chat_id: order.telefono,\n      message: buildExpiryMessage(order, plan[index].released, catalogRow),\n    };\n  });\n}\n\nfunction buildExpiryPlan(expiredOrders, inventoryRows, catalogRows, now) {\n  return {\n    inventoryUpdates: aggregateInventoryUpdates(expiredOrders, inventoryRows, now),\n    bitacoraRows: buildBitacoraRows(expiredOrders, inventoryRows, now),\n    notifications: buildNotifications(expiredOrders, inventoryRows, catalogRows),\n  };\n}\n\n// --- n8n data assembly -------------------------------------------------------\n// Guarded: outside the editor (test harness) `$` does not exist, so this block\n// stays inert and only the named functions above are reachable.\nif (typeof $ !== 'undefined') {\n  const now = new Date();\n  const ordenes = $('read_ordenes').all().map((item) => item.json);\n  const inventario = $('read_inventario').all().map((item) => item.json);\n  const catalogo = $('read_catalogo').all().map((item) => item.json);\n  const expired = selectExpiredOrders(ordenes, now);\n  const plan = buildExpiryPlan(expired, inventario, catalogo, now);\n  return [\n    {\n      json: {\n        count: expired.length,\n        expired: expired,\n        inventoryUpdates: plan.inventoryUpdates,\n        bitacoraRows: plan.bitacoraRows,\n        notifications: plan.notifications,\n      },\n    },\n  ];\n}\n"
+      },
+      "id": "n05",
+      "name": "find_expired",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "notes": "RF-06: selects PENDIENTE_RECETA orders with fecha_expiracion <= now (inclusive, date-parsed), aggregates stock release per medicamento_id, clamps at 0, builds bitacora rows (accion EXPIRACION) and Telegram messages. Emits exactly one item."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us10-count-gt-zero",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "n06",
+      "name": "if_any_expired",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const expired = $('find_expired').item.json.expired || [];\nreturn expired.map((order) => ({\n  json: Object.assign({}, order, {\n    estado: 'CANCELADO_EXPIRADO',\n    fecha_expiracion: '',\n  }),\n}));\n"
+      },
+      "id": "n07",
+      "name": "expand_orders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $json.codigo_far }}",
+            "estado": "={{ $json.estado }}",
+            "fecha_expiracion": "={{ $json.fecha_expiracion }}"
+          },
+          "matchingColumns": [
+            "codigo_far"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "n08",
+      "name": "update_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        300
+      ],
+      "notes": "RF-06: appendOrUpdate keyed on codigo_far; only estado and fecha_expiracion are mapped, the remaining columns stay untouched."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const updates = $('find_expired').item.json.inventoryUpdates || [];\nreturn updates.map((update) => ({ json: update }));\n"
+      },
+      "id": "n09",
+      "name": "expand_inventory",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "medicamento_id": "={{ $json.medicamento_id }}",
+            "stock_reservado": "={{ $json.stock_reservado }}",
+            "ultima_actualizacion": "={{ $json.ultima_actualizacion }}"
+          },
+          "matchingColumns": [
+            "medicamento_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "n10",
+      "name": "update_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        300
+      ],
+      "notes": "RF-06: one row per affected medicamento_id with the final clamped stock_reservado. stock_neto is left unmapped (formula column)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $('find_expired').item.json.bitacoraRows || [];\nreturn rows.map((row) => ({ json: row }));\n"
+      },
+      "id": "n11",
+      "name": "emit_bitacora",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "bitacora"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "accion": "={{ $json.accion }}",
+            "codigo_far": "={{ $json.codigo_far }}",
+            "medicamento_id": "={{ $json.medicamento_id }}",
+            "delta_reservado": "={{ $json.delta_reservado }}",
+            "detalle": "={{ $json.detalle }}",
+            "estado_anterior": "={{ $json.estado_anterior }}",
+            "estado_nuevo": "={{ $json.estado_nuevo }}",
+            "actor": "={{ $json.actor }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "n12",
+      "name": "append_bitacora",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2420,
+        300
+      ],
+      "notes": "RF-06: audit row per expired order, accion = EXPIRACION, delta_reservado signed negative (the amount actually released)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const notifications = $('find_expired').item.json.notifications || [];\nreturn notifications.map((entry) => ({\n  json: { chat_id: entry.chat_id, message: entry.message },\n}));\n"
+      },
+      "id": "n13",
+      "name": "emit_notifications",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "id": "n14",
+      "name": "send_telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "cron_hourly": {
+      "main": [
+        [
+          {
+            "node": "read_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          {
+            "node": "read_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_inventario": {
+      "main": [
+        [
+          {
+            "node": "read_catalogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_catalogo": {
+      "main": [
+        [
+          {
+            "node": "find_expired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "find_expired": {
+      "main": [
+        [
+          {
+            "node": "if_any_expired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_any_expired": {
+      "main": [
+        [
+          {
+            "node": "expand_orders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "expand_orders": {
+      "main": [
+        [
+          {
+            "node": "update_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_ordenes": {
+      "main": [
+        [
+          {
+            "node": "expand_inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "expand_inventory": {
+      "main": [
+        [
+          {
+            "node": "update_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_inventario": {
+      "main": [
+        [
+          {
+            "node": "emit_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "emit_bitacora": {
+      "main": [
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_bitacora": {
+      "main": [
+        [
+          {
+            "node": "emit_notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "emit_notifications": {
+      "main": [
+        [
+          {
+            "node": "send_telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "7f3b9d21-4c8e-4a16-b5a0-2d9e6c1f0a47",
+  "tags": []
+}

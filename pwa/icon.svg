@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Reparto">
+  <rect width="128" height="128" rx="28" fill="#0f766e"/>
+  <path d="M30 56 64 39l34 17v36L64 109 30 92z" fill="#f8fafc" stroke="#134e4a" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M30 56 64 73l34-17M64 73v36" fill="none" stroke="#134e4a" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="97" cy="37" r="17" fill="#f59e0b"/>
+  <path d="M97 26c-4.4 0-8 3.6-8 8 0 5.9 8 14 8 14s8-8.1 8-14c0-4.4-3.6-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" fill="#ffffff"/>
+</svg>

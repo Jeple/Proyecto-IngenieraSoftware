@@ -1,0 +1,20 @@
+{
+  "name": "Reparto Farmacia Peñalolén",
+  "short_name": "Reparto",
+  "description": "Aplicación de reparto para conductores: lista de entregas, estados con un toque y tiempo estimado de llegada basado en OSRM.",
+  "lang": "es",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

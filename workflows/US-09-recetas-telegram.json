@@ -1,0 +1,409 @@
+{
+  "name": "US-09 Recetas por Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-recetas",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "us09n01",
+      "name": "webhook_recetas",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 340],
+      "webhookId": "telegram-recetas"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// US-09: parse inbound Telegram update (recipe photo ingestion).\n// Named functions are extracted and unit-tested outside n8n; the data\n// assembly below is guarded so the file can be loaded standalone.\n\nfunction isAuthorized(headers, secret) {\n  if (!secret) return false;\n  const source = headers || {};\n  let value;\n  for (const key of Object.keys(source)) {\n    if (String(key).toLowerCase() === 'x-telegram-bot-api-secret-token') {\n      value = source[key];\n      break;\n    }\n  }\n  if (value === undefined || value === null) return false;\n  const provided = Array.isArray(value) ? value[0] : value;\n  return String(provided) === String(secret);\n}\n\nfunction extractCode(text) {\n  if (typeof text !== 'string') return '';\n  const match = text.match(/FAR-\\d{4}/i);\n  return match ? match[0].toUpperCase() : '';\n}\n\nfunction selectPhotoFileId(photo) {\n  if (!Array.isArray(photo) || photo.length === 0) return null;\n  const last = photo[photo.length - 1];\n  if (!last || typeof last.file_id !== 'string') return null;\n  return last.file_id;\n}\n\nfunction parseUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chatId = message.chat ? message.chat.id : undefined;\n  if (chatId === undefined || chatId === null) return [];\n  const codigo_far = extractCode(message.caption) || extractCode(message.text);\n  const file_id = selectPhotoFileId(message.photo);\n  return [\n    {\n      json: {\n        chat_id: chatId,\n        codigo_far: codigo_far,\n        file_id: file_id,\n        source: 'telegram'\n      }\n    }\n  ];\n}\n\nif (typeof $ !== 'undefined') {\n  const event = $input.first().json || {};\n  return parseUpdate(\n    event.body || {},\n    event.headers || {},\n    process.env.TELEGRAM_WEBHOOK_SECRET\n  );\n}\n"
+      },
+      "id": "us09n02",
+      "name": "parse_recipe_message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 340]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "us09n03",
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [700, 340]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// US-09: decide the single reply for the parsed Telegram recipe message.\n// Named functions are extracted and unit-tested outside n8n; the n8n data\n// assembly is guarded with typeof $ !== 'undefined'.\n\nfunction isTitularOf(order, chatId) {\n  const owner = order && order.telefono !== null && order.telefono !== undefined ? String(order.telefono) : '';\n  const requester = chatId === null || chatId === undefined ? '' : String(chatId);\n  return owner !== '' && owner === requester;\n}\n\nfunction classifyAction(input) {\n  const codigo = input && input.codigo_far;\n  const fileId = input && input.file_id;\n  const order = input && input.order;\n  const chatId = input && input.chat_id;\n  if (!codigo) return 'ASK_CODE';\n  // Titularidad (GitHub #19): la receta solo se asocia desde el chat que creó\n  // el pedido; el mismo mensaje cubre código inexistente y chat ajeno.\n  if (!order || !isTitularOf(order, chatId)) return 'NOT_FOUND';\n  if (order.estado !== 'PENDIENTE_RECETA') return 'NOT_PENDING';\n  if (!fileId) return 'ASK_PHOTO';\n  return 'UPLOAD';\n}\n\nfunction buildRecipeMessage(action, codigo_far) {\n  if (action === 'ASK_CODE') {\n    return 'No recibí el código del pedido. Reenvía la foto con el código #FAR-XXXX en el pie de foto.';\n  }\n  if (action === 'ASK_PHOTO') {\n    return 'Tu pedido #' + codigo_far + ' está esperando la receta. Adjunta la foto de la receta con el código en el pie de foto.';\n  }\n  if (action === 'NOT_FOUND') {\n    return 'No encontré ese pedido. Revisa el código #FAR-XXXX; la receta se asocia solo desde el chat con el que hiciste la reserva.';\n  }\n  if (action === 'NOT_PENDING') {\n    return 'Tu pedido #' + codigo_far + ' no está esperando receta. Consulta su estado en la farmacia.';\n  }\n  if (action === 'UPLOAD') {\n    return 'Recibimos la receta de tu pedido #' + codigo_far + '. Ya pasa a preparación.';\n  }\n  return '';\n}\n\nfunction buildDriveName(codigo, timestampMs, extension) {\n  return codigo + '/receta-' + timestampMs + '.' + extension;\n}\n\nif (typeof $ !== 'undefined') {\n  const parsed = $('parse_recipe_message').first().json;\n  const rows = $('read_ordenes').all();\n  let order = null;\n  if (parsed.codigo_far) {\n    for (const row of rows) {\n      const value = row.json || {};\n      if (String(value.codigo_far) === String(parsed.codigo_far)) {\n        order = value;\n        break;\n      }\n    }\n  }\n  const action = classifyAction({\n    codigo_far: parsed.codigo_far,\n    file_id: parsed.file_id,\n    order: order,\n    chat_id: parsed.chat_id\n  });\n  return [\n    {\n      json: {\n        chat_id: parsed.chat_id,\n        source: parsed.source || 'telegram',\n        codigo_far: parsed.codigo_far,\n        file_id: parsed.file_id,\n        action: action,\n        message: buildRecipeMessage(action, parsed.codigo_far)\n      }\n    }\n  ];\n}\n"
+      },
+      "id": "us09n04",
+      "name": "build_action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 340]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us09if01",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "UPLOAD",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "us09n05",
+      "name": "if_upload",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1140, 340]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/getFile",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "file_id",
+              "value": "={{ $json.file_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "us09n06",
+      "name": "get_telegram_file",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 180]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/file",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "file_path",
+              "value": "={{ $json.result.file_path }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "us09n07",
+      "name": "download_telegram_file",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1580, 180]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $('build_action').first().json.codigo_far }}/receta-{{ Date.now() }}.jpg",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "root"
+        },
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "us09n08",
+      "name": "upload_to_drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 2.1,
+      "position": [1800, 180],
+      "notes": "Upload binary property 'data' to Drive. Destination name mirrors buildDriveName(codigo, timestampMs, ext): '<codigo>/receta-<timestampMs>.jpg' (timestamp produced inline via Date.now()). Parameter-level validation (operation/name/folderId/binaryPropertyName keys for typeVersion 2.1) happens on first import - open risk: adjust key names if the imported node flags them."
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $('build_action').first().json.codigo_far }}",
+            "url_receta": "={{ $('upload_to_drive').first().json.webViewLink || $('upload_to_drive').first().json.webUrl || ('https://drive.google.com/file/d/' + $('upload_to_drive').first().json.id + '/view') }}",
+            "fecha_receta": "={{ $now.toISO() }}",
+            "estado": "RECETA_RECIBIDA"
+          },
+          "matchingColumns": [
+            "codigo_far"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "us09n09",
+      "name": "update_orden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2020, 180]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "bitacora"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "accion": "RECETA_RECIBIDA",
+            "codigo_far": "={{ $('build_action').first().json.codigo_far }}",
+            "medicamento_id": "={{ ($('read_ordenes').all().find(function (r) { return String((r.json || {}).codigo_far) === String($('build_action').first().json.codigo_far); }) || { json: {} }).json.medicamento_id || '' }}",
+            "delta_reservado": 0,
+            "detalle": "foto recibida por Telegram",
+            "estado_anterior": "PENDIENTE_RECETA",
+            "estado_nuevo": "RECETA_RECIBIDA",
+            "actor": "={{ 'cliente:' + $('build_action').first().json.chat_id }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "us09n10",
+      "name": "append_bitacora",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2240, 180]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// US-09: final success reply after Drive upload + sheet updates.\n// Named functions are extracted and unit-tested outside n8n; the n8n data\n// assembly is guarded with typeof $ !== 'undefined'.\n\nfunction buildRecipeMessage(action, codigo_far) {\n  if (action === 'ASK_CODE') {\n    return 'No recibí el código del pedido. Reenvía la foto con el código #FAR-XXXX en el pie de foto.';\n  }\n  if (action === 'ASK_PHOTO') {\n    return 'Tu pedido #' + codigo_far + ' está esperando la receta. Adjunta la foto de la receta con el código en el pie de foto.';\n  }\n  if (action === 'NOT_FOUND') {\n    return 'No encontré ese pedido. Revisa el código #FAR-XXXX; la receta se asocia solo desde el chat con el que hiciste la reserva.';\n  }\n  if (action === 'NOT_PENDING') {\n    return 'Tu pedido #' + codigo_far + ' no está esperando receta. Consulta su estado en la farmacia.';\n  }\n  if (action === 'UPLOAD') {\n    return 'Recibimos la receta de tu pedido #' + codigo_far + '. Ya pasa a preparación.';\n  }\n  return '';\n}\n\nif (typeof $ !== 'undefined') {\n  const origin = $('build_action').first().json;\n  return [\n    {\n      json: {\n        chat_id: origin.chat_id,\n        source: origin.source || 'telegram',\n        message: buildRecipeMessage('UPLOAD', origin.codigo_far)\n      }\n    }\n  ];\n}\n"
+      },
+      "id": "us09n11",
+      "name": "finalize_success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2460, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "id": "us09n13",
+      "name": "send_telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 520],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "webhook_recetas": {
+      "main": [
+        [
+          {
+            "node": "parse_recipe_message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_recipe_message": {
+      "main": [
+        [
+          {
+            "node": "read_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          {
+            "node": "build_action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "build_action": {
+      "main": [
+        [
+          {
+            "node": "if_upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_upload": {
+      "main": [
+        [
+          {
+            "node": "get_telegram_file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "send_telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_telegram_file": {
+      "main": [
+        [
+          {
+            "node": "download_telegram_file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download_telegram_file": {
+      "main": [
+        [
+          {
+            "node": "upload_to_drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload_to_drive": {
+      "main": [
+        [
+          {
+            "node": "update_orden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_orden": {
+      "main": [
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_bitacora": {
+      "main": [
+        [
+          {
+            "node": "finalize_success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "finalize_success": {
+      "main": [
+        [
+          {
+            "node": "send_telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "3f7a1c92-5b8e-4d61-9a0f-2c8e4b1d7a35",
+  "tags": []
+}

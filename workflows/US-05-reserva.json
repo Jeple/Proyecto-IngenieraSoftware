@@ -1,0 +1,580 @@
+{
+  "name": "US-05 Reserva con Código Transaccional",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-reserva",
+        "responseMode": "onReceived",
+        "webhookId": "us05-webhook-reserva",
+        "options": {}
+      },
+      "id": "nwr05",
+      "name": "webhook_reserva",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "us05-webhook-reserva",
+      "notes": "responseMode onReceived returns an immediate 200 to Telegram before any processing (RNF-01): parsing, the three Sheets reads, evaluation and all writes run after the ack."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-05 — parse_reservation.\n *\n * Extracts the incoming Telegram text message from the webhook payload and\n * applies the reservation parsing rules in the specified order:\n *   1) quantity, 2) RUT (captured for the order row and removed from the\n *   medication query), 3) leading intent keywords.\n * Outputs ONE item { chat_id, query, quantity, rut, text } or an EMPTY array.\n * Never throws: malformed payloads are dropped silently.\n */\n\n/** quantity patterns, tried in the specified order. */\nfunction extractQuantity(text) {\n  let m = / x\\s*(\\d{1,3})\\s*$/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  m = /(\\d{1,3})\\s*(?:unidades|uds|u)\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  // Generic \"xN\" form: the delivery-block format keeps the quantity mid-text\n  // (\"reservar X x2 rut ..., dirección, sector\"), no longer only at the end.\n  m = /\\bx\\s*(\\d{1,3})\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  return null;\n}\n\n/**\n * Parse a free-text reservation request: quantity -> RUT -> intent keywords.\n * Returns { query, quantity, rut } — never throws.\n */\n/**\n * Parses a free-text reservation request: quantity -> RUT -> intent keywords,\n * then the delivery block as comma-separated segments:\n *   [producto], [dirección], [sector]\n * The sector is matched tolerantly (accents/case); an unknown sector stays\n * empty and another comuna maps to 'Otro' (out of coverage).\n * Returns { query, quantity, rut, direccion, sector } — never throws.\n */\nfunction parseReservationText(text) {\n  const SECTOR_MATCHERS = [\n    { name: 'Peñalolén Alto', re: /pe[nñ]alol[eé]n\\s+alto/i },\n    { name: 'Peñalolén Nuevo', re: /pe[nñ]alol[eé]n\\s+nuevo/i },\n    { name: 'San Luis', re: /san\\s+luis/i },\n    { name: 'Otro', re: /otra?\\s+comuna|fuera\\s+de\\s+pe[nñ]alol[eé]n|\\botro\\b/i }\n  ];\n  const OUT_OF_COVERAGE_COMUNAS = /(nunoa|la reina|macul|la florida|puente alto|san joaquin|la cisterna|el bosque|san ramon|la granja)/;\n\n  function normalizeDeliveryText(value) {\n    return String(value === null || value === undefined ? '' : value)\n      .toLowerCase()\n      .normalize('NFD')\n      .replace(/[\\u0300-\\u036f]/g, '');\n  }\n\n  function pullSector(segment) {\n    for (let m = 0; m < SECTOR_MATCHERS.length; m++) {\n      const hit = SECTOR_MATCHERS[m];\n      if (hit.re.test(segment)) {\n        return { sector: hit.name, rest: segment.replace(hit.re, ' ') };\n      }\n    }\n    return { sector: '', rest: segment };\n  }\n\n  const raw = String(text === null || text === undefined ? '' : text).trim();\n  let working = raw;\n\n  // 1) quantity — tried on the raw text first (spec order).\n  const firstPass = extractQuantity(working);\n\n  // 2) RUT — captured for the order row and removed from the medication query.\n  const rutMatch = /\\b(\\d{1,2}\\.?\\d{3}\\.?\\d{3}-[\\dkK])\\b/i.exec(working);\n  const rut = rutMatch ? rutMatch[1] : '';\n  if (rutMatch) {\n    working = working.replace(rutMatch[0], ' ');\n    working = working.replace(/\\brut\\b/ig, ' '); // \"rut\" is a field label, not part of the name\n  }\n\n  // 1b) quantity retried once the trailing RUT block is gone.\n  let quantity = firstPass ? firstPass.quantity : null;\n  let quantityText = firstPass ? firstPass.matchText : '';\n  if (quantity === null) {\n    const secondPass = extractQuantity(working);\n    if (secondPass) {\n      quantity = secondPass.quantity;\n      quantityText = secondPass.matchText;\n    }\n  }\n  if (quantityText) working = working.replace(quantityText, ' ');\n  if (quantity === null || isNaN(quantity)) quantity = 1;\n\n  // 3) leading intent keywords are stripped.\n  working = working.replace(/^\\s*(?:(?:reservar|reserva|encargar|encargo|comprar|lo quiero)\\s*)+/i, ' ');\n\n  // 4) delivery block: comma-separated segments — [producto], [dirección], [sector].\n  const segments = working\n    .split(',')\n    .map(function (s) { return s.replace(/\\s+/g, ' ').trim(); })\n    .filter(function (s) { return s.length > 0; });\n\n  let query = segments.length ? segments[0] : '';\n  let direccion = '';\n  let sector = '';\n\n  if (segments.length > 1) {\n    for (let i = 1; i < segments.length; i++) {\n      let seg = segments[i];\n      if (!sector) {\n        const pulled = pullSector(seg);\n        sector = pulled.sector;\n        seg = pulled.rest;\n      }\n      seg = seg.replace(/\\s+/g, ' ').trim();\n      if (seg) direccion = direccion ? direccion + ', ' + seg : seg;\n    }\n  } else if (query) {\n    // Single segment: a trailing sector word still counts as sector.\n    const pulled = pullSector(query);\n    if (pulled.sector) {\n      sector = pulled.sector;\n      query = pulled.rest.replace(/\\s+/g, ' ').trim();\n    }\n  }\n\n  if (!sector && direccion && OUT_OF_COVERAGE_COMUNAS.test(normalizeDeliveryText(direccion))) {\n    sector = 'Otro';\n    direccion = direccion\n      .replace(OUT_OF_COVERAGE_COMUNAS, ' ')\n      .replace(/\\s+/g, ' ')\n      .replace(/^[,\\s]+|[,\\s]+$/g, '');\n  }\n\n  direccion = direccion\n    .replace(/^(?:direccion|dir|domicilio|entrega|envio|en)\\s*:?\\s*/i, '')\n    .trim();\n  if (direccion.length > 120) direccion = direccion.slice(0, 120).trim();\n\n  return {\n    query: query,\n    quantity: quantity,\n    rut: rut,\n    direccion: direccion,\n    sector: sector\n  };\n}\n\n// --- Telegram webhook secret (pure function, tested outside n8n) ------------\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item\n * { chat_id, query, quantity, rut, text } or an EMPTY array.\n * Unauthorized, missing-message and non-text updates return [] (silent drop;\n * the immediate 200 was already returned — RNF-01). Never throws.\n */\nfunction parseTelegramUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return []; // non-text message -> drop\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  const parsed = parseReservationText(text);\n  return [\n    {\n      json: {\n        chat_id: chat,\n        query: parsed.query,\n        quantity: parsed.quantity,\n        rut: parsed.rut,\n        direccion: parsed.direccion,\n        sector: parsed.sector,\n        text: text\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update =\n        json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        process.env.TELEGRAM_WEBHOOK_SECRET\n      );\n      if (out.length) return out; // ONE item per webhook payload\n    }\n  } catch (err) {\n    return []; // malformed payload -> drop, never throw\n  }\n  return [];\n}\n"
+      },
+      "id": "npr05",
+      "name": "parse_reservation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "notes": "Parses the Telegram update -> { chat_id, query, quantity, rut }. Rules in order: quantity, RUT (removed from the medication query), leading intent keywords. Empty array on unauthorized or malformed payloads, never throws."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "catalogo"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:I"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "nrc05",
+      "name": "read_catalogo",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:E"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "nri05",
+      "name": "read_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "nro05",
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-04 — Consulta de stock (fuzzy, LLM-free).\n *\n * SCORE = 0.60 * tokenSimilarity + 0.30 * coverage + 0.10 * doseBonus\n *   - tokenSimilarity: mean over query tokens of the best similarity found in the\n *     pool of tokens from nombre_comercial + principio_activo + dosis.\n *     Shortcuts on the candidate token: exact = 1.0, starts with query = 0.92,\n *     contains query = 0.85, otherwise levenshtein similarity.\n *   - coverage: fraction of query tokens whose best similarity is >= COVERAGE_TOKEN_MIN.\n *   - doseBonus: 1 (row dose matches the query dose token), 0.5 (query has no dose\n *     token), 0 (query dose missing in the row); a missing dose also multiplies the\n *     final score by DOSE_PENALTY (0.6).\n *   - Dose tokens are excluded from tokenSimilarity/coverage: the dose axis is\n *     scored only through doseBonus/penalty, because sheet doses are spaced\n *     (\"75 mg\") while users type \"75mg\" and a literal token match would\n *     double-penalize a correct query.\n *   - MATCH_THRESHOLD = 0.72 decides a match; MAX_SUGGESTIONS = 3 caps the\n *     bioequivalent fallback list (RF-02).\n *\n * DELIBERATELY LLM-FREE: no Gemini/LLM node exists in this workflow, so RF-01\n * grounding (never invent names, prices or stock) is structural — every figure\n * in the reply is read from the sheets and recomputed here.\n *\n * LATENCY NOTE (risk R-01): the two Google Sheets reads (read_catalogo +\n * read_inventario) dominate end-to-end latency; caching the catalog in the\n * workflow is the planned optimization.\n */\n\nconst COVERAGE_TOKEN_MIN = 0.799;\nconst MATCH_THRESHOLD = 0.72;\nconst MAX_SUGGESTIONS = 3;\nconst DOSE_PENALTY = 0.6;\n\nfunction normalize(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(s) {\n  const n = normalize(s);\n  return n ? n.split(' ') : [];\n}\n\nfunction levenshteinDistance(a, b) {\n  a = String(a === null || a === undefined ? '' : a);\n  b = String(b === null || b === undefined ? '' : b);\n  if (a === b) return 0;\n  if (a.length === 0) return b.length;\n  if (b.length === 0) return a.length;\n  let prev = new Array(b.length + 1);\n  let curr = new Array(b.length + 1);\n  for (let j = 0; j <= b.length; j++) prev[j] = j;\n  for (let i = 1; i <= a.length; i++) {\n    curr[0] = i;\n    for (let j = 1; j <= b.length; j++) {\n      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;\n      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);\n    }\n    const tmp = prev;\n    prev = curr;\n    curr = tmp;\n  }\n  return prev[b.length];\n}\n\nfunction levenshteinSimilarity(a, b) {\n  const left = String(a === null || a === undefined ? '' : a);\n  const right = String(b === null || b === undefined ? '' : b);\n  if (left.length === 0 && right.length === 0) return 1;\n  if (left.length === 0 || right.length === 0) return 0;\n  const maxLen = Math.max(left.length, right.length);\n  return 1 - levenshteinDistance(left, right) / maxLen;\n}\n\nfunction isDoseToken(token) {\n  return /^\\d+(\\.\\d+)?$/.test(token) || /^\\d+(\\.\\d+)?(mg|ml|g|ui|mcg)$/.test(token);\n}\n\nfunction parseDoseToken(token) {\n  const m = /^(\\d+(?:\\.\\d+)?)(mg|ml|g|ui|mcg)?$/.exec(String(token));\n  return m ? { value: m[1], unit: m[2] || '' } : null;\n}\n\n/** Row dose matches the query dose token when the normalized dose tokens contain\n *  the token value (and the unit, when the token carries one), e.g. dose\n *  \"75 mg\" contains token \"75\" and token \"75mg\". */\nfunction rowDoseMatches(rowDose, doseToken) {\n  const parsed = parseDoseToken(doseToken);\n  if (!parsed) return false;\n  const doseTokens = tokenize(rowDose);\n  if (doseTokens.indexOf(parsed.value) === -1) return false;\n  if (!parsed.unit) return true;\n  return doseTokens.indexOf(parsed.unit) !== -1;\n}\n\n/** Field-match shortcuts: exact = 1.0, starts with query = 0.92, contains = 0.85. */\nfunction tokenSimilarity(queryToken, candidateToken) {\n  if (queryToken === candidateToken) return 1;\n  if (queryToken.length > 0 && candidateToken.indexOf(queryToken) === 0) return 0.92;\n  if (queryToken.length > 0 && candidateToken.indexOf(queryToken) !== -1) return 0.85;\n  return levenshteinSimilarity(queryToken, candidateToken);\n}\n\nfunction rowJson(item) {\n  return item && item.json ? item.json : item;\n}\n\nfunction tokenPool(row) {\n  const fields = [row.nombre_comercial, row.principio_activo, row.dosis]\n    .map(normalize)\n    .join(' ')\n    .trim();\n  return fields ? fields.split(' ') : [];\n}\n\nfunction isActiveRow(row) {\n  return !!row && normalize(row.activo) === 'si';\n}\n\n/** Final score (0..1) of one catalog row for the given tokenized query. */\nfunction scoreCandidate(queryTokens, queryDoseToken, row) {\n  const pool = tokenPool(row);\n  let sum = 0;\n  let covered = 0;\n  let scored = 0;\n  for (let i = 0; i < queryTokens.length; i++) {\n    const qt = queryTokens[i];\n    if (isDoseToken(qt)) continue; // dose axis is scored via doseBonus/penalty only\n    scored++;\n    let best = 0;\n    for (let j = 0; j < pool.length; j++) {\n      const s = tokenSimilarity(qt, pool[j]);\n      if (s > best) best = s;\n    }\n    sum += best;\n    if (best >= COVERAGE_TOKEN_MIN) covered++;\n  }\n  const ts = scored ? sum / scored : 0;\n  const coverage = scored ? covered / scored : 0;\n  const doseMatched = queryDoseToken ? rowDoseMatches(row.dosis, queryDoseToken) : null;\n  const doseBonus = queryDoseToken ? (doseMatched ? 1 : 0) : 0.5;\n  let final = 0.60 * ts + 0.30 * coverage + 0.10 * doseBonus;\n  if (queryDoseToken && !doseMatched) final *= DOSE_PENALTY;\n  return final;\n}\n\nfunction inventoryMap(inventoryRows) {\n  const map = new Map();\n  const rows = inventoryRows || [];\n  for (let i = 0; i < rows.length; i++) {\n    const r = rowJson(rows[i]);\n    if (r && r.medicamento_id !== undefined && r.medicamento_id !== null) {\n      map.set(normalize(r.medicamento_id), r);\n    }\n  }\n  return map;\n}\n\n/** stock_neto is ALWAYS recomputed here (stock_real - stock_reservado);\n *  the sheet's stock_neto formula column is never trusted. */\nfunction stockNeto(row, inventoryById) {\n  const inv = inventoryById.get(normalize(row.medicamento_id));\n  if (!inv) return 0;\n  const real = Number(inv.stock_real);\n  const reserved = Number(inv.stock_reservado);\n  return (isNaN(real) ? 0 : real) - (isNaN(reserved) ? 0 : reserved);\n}\n\n/**\n * Best active catalog row for a free-text query.\n * Returns { matched, score }: `matched` is the row only when score >= MATCH_THRESHOLD,\n * `score` is always the best score found (so callers/tests can assert on it).\n */\nfunction matchMedicine(query, catalogRows) {\n  const queryTokens = tokenize(query);\n  let queryDoseToken = null;\n  for (let i = 0; i < queryTokens.length; i++) {\n    if (isDoseToken(queryTokens[i])) {\n      queryDoseToken = queryTokens[i];\n      break;\n    }\n  }\n  const rows = (catalogRows || []).map(rowJson).filter(isActiveRow);\n  let bestRow = null;\n  let bestScore = 0;\n  for (let i = 0; i < rows.length; i++) {\n    const s = scoreCandidate(queryTokens, queryDoseToken, rows[i]);\n    if (bestRow === null || s > bestScore) {\n      bestRow = rows[i];\n      bestScore = s;\n    }\n  }\n  return {\n    matched: bestRow !== null && bestScore >= MATCH_THRESHOLD ? bestRow : null,\n    score: bestScore\n  };\n}\n\n/** CLP with \".\" thousands separator and \"$\" prefix, e.g. formatClp(4500) === \"$4.500\". */\nfunction formatClp(value) {\n  const n = Math.round(Number(value) || 0);\n  const digits = String(Math.abs(n));\n  let grouped = '';\n  for (let i = 0; i < digits.length; i++) {\n    grouped += digits.charAt(i);\n    const remaining = digits.length - 1 - i;\n    if (remaining > 0 && remaining % 3 === 0) grouped += '.';\n  }\n  return (n < 0 ? '-' : '') + '$' + grouped;\n}\n\n/** Up to MAX_SUGGESTIONS active rows with stock: bioequivalente_de points at the\n *  matched row, OR same principio_activo AND same dosis (RF-02 fallback). */\nfunction suggestionRows(matched, catalogRows, inventoryById) {\n  const matchedId = normalize(matched.medicamento_id);\n  const matchedActive = normalize(matched.principio_activo);\n  const matchedDose = normalize(matched.dosis);\n  const rows = (catalogRows || []).map(rowJson);\n  const out = [];\n  for (let i = 0; i < rows.length; i++) {\n    const cand = rows[i];\n    if (!isActiveRow(cand)) continue;\n    if (normalize(cand.medicamento_id) === matchedId) continue;\n    const byLink = normalize(cand.bioequivalente_de) === matchedId;\n    const byMoiety =\n      normalize(cand.principio_activo) === matchedActive &&\n      normalize(cand.dosis) === matchedDose;\n    if (!byLink && !byMoiety) continue;\n    if (stockNeto(cand, inventoryById) <= 0) continue;\n    out.push(cand);\n    if (out.length >= MAX_SUGGESTIONS) break;\n  }\n  return out;\n}\n\n/**\n * Full Spanish reply for a query. Returns '' when nothing should be sent\n * (empty/non-text input). Never invents names, prices or stock numbers (RF-01).\n */\nfunction buildReplyText(query, catalogRows, inventoryRows) {\n  const q = String(query === null || query === undefined ? '' : query).trim();\n  if (!q || !normalize(q)) return '';\n  const inventoryById = inventoryMap(inventoryRows);\n  const result = matchMedicine(q, catalogRows);\n\n  if (result.matched) {\n    const row = result.matched;\n    const stock = stockNeto(row, inventoryById);\n    const head =\n      row.nombre_comercial + ' ' + row.dosis + ' — ' +\n      formatClp(row.precio_unitario_clp) + ' c/u. Stock disponible: ' + stock + ' unidades.';\n    if (stock > 0) return head;\n\n    const alts = suggestionRows(row, catalogRows, inventoryById);\n    if (alts.length === 0) {\n      // No available bioequivalent: state it plainly, without naming any product.\n      return 'Este producto no tiene stock disponible en este momento y no contamos con bioequivalentes disponibles con stock. Puede intentar nuevamente más tarde.';\n    }\n    let text =\n      head + ' Producto agotado temporalmente. Bioequivalentes disponibles con stock:\\n';\n    for (let i = 0; i < alts.length; i++) {\n      const a = alts[i];\n      text +=\n        '- ' + a.nombre_comercial + ' ' + a.dosis + ' — ' +\n        formatClp(a.precio_unitario_clp) + ' c/u.\\n';\n    }\n    return text.replace(/\\n$/, '');\n  }\n\n  // No match (R-02 grounding): no product name, no price, no stock figure.\n  return 'No encontré \"' + q + '\" en nuestro catálogo. Le sugiero reintentar con el nombre del principio activo (el genérico).';\n}\n\n\n// --- US-05 reservation logic -------------------------------------------------\n// NOTE ON DUPLICATION: the fuzzy matcher above is intentionally duplicated from\n// workflows/US-04-consulta-stock.json — n8n cannot import local JS without\n// allowlisting a folder, so each workflow carries its own copy.\n// scripts/test-reserva.mjs is the DRIFT GUARD that keeps both copies honest.\n//\n// RF-03: every confirmed request generates a sequential code FAR-XXXX (shown as\n//        #FAR-XXXX) linked to the customer's phone and RUT.\n// RF-04: creating an order immediately increments inventario.stock_reservado.\n// RNF-04: reservation writes are sequential and verified after the write.\n// D-01 (PROVISIONAL — pending validation with bodega, see\n//        docs/google-sheets-schema.md): requiere_receta = \"SI\" is born in\n//        PENDIENTE_RECETA with fecha_expiracion = fecha_creacion + 12h;\n//        requiere_receta = \"NO\" is born in EN_PREPARACION with no expiry.\n//        Only enum states from setup-sheets.gs are ever produced.\n\nconst RECIPE_EXPIRY_HOURS = 12;\nconst ESTADO_PENDIENTE_RECETA = 'PENDIENTE_RECETA';\nconst ESTADO_EN_PREPARACION = 'EN_PREPARACION';\nconst BITACORA_ACCION_RESERVA = 'RESERVA_ALTA';\nconst CONFLICTO_FLAG = 'CONFLICTO_INVENTARIO';\nconst MILLISECONDS_PER_HOUR = 60 * 60 * 1000;\n\n/** quantity patterns, tried in the specified order. */\nfunction extractQuantity(text) {\n  let m = / x\\s*(\\d{1,3})\\s*$/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  m = /(\\d{1,3})\\s*(?:unidades|uds|u)\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  // Generic \"xN\" form: the delivery-block format keeps the quantity mid-text\n  // (\"reservar X x2 rut ..., dirección, sector\"), no longer only at the end.\n  m = /\\bx\\s*(\\d{1,3})\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  return null;\n}\n\n/**\n * Parse a free-text reservation request: quantity -> RUT -> intent keywords.\n * Returns { query, quantity, rut } — never throws. Same copy as parse_reservation.\n */\n/**\n * Parses a free-text reservation request: quantity -> RUT -> intent keywords,\n * then the delivery block as comma-separated segments:\n *   [producto], [dirección], [sector]\n * The sector is matched tolerantly (accents/case); an unknown sector stays\n * empty and another comuna maps to 'Otro' (out of coverage).\n * Returns { query, quantity, rut, direccion, sector } — never throws.\n */\nfunction parseReservationText(text) {\n  const SECTOR_MATCHERS = [\n    { name: 'Peñalolén Alto', re: /pe[nñ]alol[eé]n\\s+alto/i },\n    { name: 'Peñalolén Nuevo', re: /pe[nñ]alol[eé]n\\s+nuevo/i },\n    { name: 'San Luis', re: /san\\s+luis/i },\n    { name: 'Otro', re: /otra?\\s+comuna|fuera\\s+de\\s+pe[nñ]alol[eé]n|\\botro\\b/i }\n  ];\n  const OUT_OF_COVERAGE_COMUNAS = /(nunoa|la reina|macul|la florida|puente alto|san joaquin|la cisterna|el bosque|san ramon|la granja)/;\n\n  function normalizeDeliveryText(value) {\n    return String(value === null || value === undefined ? '' : value)\n      .toLowerCase()\n      .normalize('NFD')\n      .replace(/[\\u0300-\\u036f]/g, '');\n  }\n\n  function pullSector(segment) {\n    for (let m = 0; m < SECTOR_MATCHERS.length; m++) {\n      const hit = SECTOR_MATCHERS[m];\n      if (hit.re.test(segment)) {\n        return { sector: hit.name, rest: segment.replace(hit.re, ' ') };\n      }\n    }\n    return { sector: '', rest: segment };\n  }\n\n  const raw = String(text === null || text === undefined ? '' : text).trim();\n  let working = raw;\n\n  // 1) quantity — tried on the raw text first (spec order).\n  const firstPass = extractQuantity(working);\n\n  // 2) RUT — captured for the order row and removed from the medication query.\n  const rutMatch = /\\b(\\d{1,2}\\.?\\d{3}\\.?\\d{3}-[\\dkK])\\b/i.exec(working);\n  const rut = rutMatch ? rutMatch[1] : '';\n  if (rutMatch) {\n    working = working.replace(rutMatch[0], ' ');\n    working = working.replace(/\\brut\\b/ig, ' '); // \"rut\" is a field label, not part of the name\n  }\n\n  // 1b) quantity retried once the trailing RUT block is gone.\n  let quantity = firstPass ? firstPass.quantity : null;\n  let quantityText = firstPass ? firstPass.matchText : '';\n  if (quantity === null) {\n    const secondPass = extractQuantity(working);\n    if (secondPass) {\n      quantity = secondPass.quantity;\n      quantityText = secondPass.matchText;\n    }\n  }\n  if (quantityText) working = working.replace(quantityText, ' ');\n  if (quantity === null || isNaN(quantity)) quantity = 1;\n\n  // 3) leading intent keywords are stripped.\n  working = working.replace(/^\\s*(?:(?:reservar|reserva|encargar|encargo|comprar|lo quiero)\\s*)+/i, ' ');\n\n  // 4) delivery block: comma-separated segments — [producto], [dirección], [sector].\n  const segments = working\n    .split(',')\n    .map(function (s) { return s.replace(/\\s+/g, ' ').trim(); })\n    .filter(function (s) { return s.length > 0; });\n\n  let query = segments.length ? segments[0] : '';\n  let direccion = '';\n  let sector = '';\n\n  if (segments.length > 1) {\n    for (let i = 1; i < segments.length; i++) {\n      let seg = segments[i];\n      if (!sector) {\n        const pulled = pullSector(seg);\n        sector = pulled.sector;\n        seg = pulled.rest;\n      }\n      seg = seg.replace(/\\s+/g, ' ').trim();\n      if (seg) direccion = direccion ? direccion + ', ' + seg : seg;\n    }\n  } else if (query) {\n    // Single segment: a trailing sector word still counts as sector.\n    const pulled = pullSector(query);\n    if (pulled.sector) {\n      sector = pulled.sector;\n      query = pulled.rest.replace(/\\s+/g, ' ').trim();\n    }\n  }\n\n  if (!sector && direccion && OUT_OF_COVERAGE_COMUNAS.test(normalizeDeliveryText(direccion))) {\n    sector = 'Otro';\n    direccion = direccion\n      .replace(OUT_OF_COVERAGE_COMUNAS, ' ')\n      .replace(/\\s+/g, ' ')\n      .replace(/^[,\\s]+|[,\\s]+$/g, '');\n  }\n\n  direccion = direccion\n    .replace(/^(?:direccion|dir|domicilio|entrega|envio|en)\\s*:?\\s*/i, '')\n    .trim();\n  if (direccion.length > 120) direccion = direccion.slice(0, 120).trim();\n\n  return {\n    query: query,\n    quantity: quantity,\n    rut: rut,\n    direccion: direccion,\n    sector: sector\n  };\n}\n\n/**\n * RF-03 — sequential code: trailing digits of every codigo_far, max + 1, padded\n * to 4 digits. Empty or all-unparseable lists yield FAR-0001; malformed codes\n * are ignored for the max computation and never crash.\n */\nfunction nextOrderCode(existingCodes) {\n  const list = Array.isArray(existingCodes) ? existingCodes : [];\n  let max = 0;\n  for (let i = 0; i < list.length; i++) {\n    const m = /(\\d+)$/.exec(String(list[i] === null || list[i] === undefined ? '' : list[i]).trim());\n    if (!m) continue; // non-numeric / malformed codes are ignored, never fatal\n    const n = parseInt(m[1], 10);\n    if (isNaN(n)) continue;\n    if (n > max) max = n;\n  }\n  const digits = String(max + 1);\n  const padded = digits.length >= 4 ? digits : ('0000' + digits).slice(-4);\n  return 'FAR-' + padded;\n}\n\n/** RF-04 — duplicate guard (GitHub #7): the same chat re-sending the same\n *  reservation within DUPLICATE_WINDOW_MS gets the existing order back; the\n *  guard is content-based because a Telegram redelivery repeats the message.\n *  Cross-request serialization stays deferred to US-13 (risk R-01). */\nconst DUPLICATE_WINDOW_MS = 2 * 60 * 1000;\nfunction findRecentDuplicate(orderItems, chatId, medicamentoId, quantity, now) {\n  const rows = orderItems || [];\n  const at = now instanceof Date ? now.getTime() : Date.parse(now);\n  for (let i = 0; i < rows.length; i++) {\n    const r = rowJson(rows[i]);\n    if (!r || typeof r !== 'object') continue;\n    const tel = r.telefono === null || r.telefono === undefined ? '' : String(r.telefono);\n    if (tel === '' || tel !== String(chatId)) continue;\n    if (normalize(r.medicamento_id) !== normalize(medicamentoId)) continue;\n    if (Number(r.cantidad) !== Number(quantity)) continue;\n    const created = Date.parse(r.fecha_creacion);\n    if (isNaN(created) || isNaN(at)) continue;\n    if (Math.abs(at - created) <= DUPLICATE_WINDOW_MS) return r;\n  }\n  return null;\n}\n\n/**\n * RF-04 / RNF-04 — available = stock_real - stock_reservado, computed here;\n * the sheet's stock_neto column is NEVER trusted.\n * reason: AGOTADO (nothing left; the caller uses the US-04 agotamiento wording)\n *         INSUFICIENTE (message states the exact remaining count).\n */\nfunction validateStock(quantity, invRow, productLabel) {\n  const inv = invRow || {};\n  const real = Number(inv.stock_real);\n  const reserved = Number(inv.stock_reservado);\n  const available = (isNaN(real) ? 0 : real) - (isNaN(reserved) ? 0 : reserved);\n  const qty = Number(quantity);\n  if (available <= 0) {\n    return { ok: false, reason: 'AGOTADO', available: available, message: '' };\n  }\n  if (qty > available) {\n    const label = productLabel ? ' de ' + productLabel : '';\n    return {\n      ok: false,\n      reason: 'INSUFICIENTE',\n      available: available,\n      message:\n        'Stock insuficiente' + label + ': solo quedan ' + available +\n        ' unidades disponibles. Puede reservar hasta ' + available + ' unidades.'\n    };\n  }\n  return { ok: true, reason: '', available: available, message: '' };\n}\n\n/**\n * D-01 (PROVISIONAL, pending validation with bodega) — initial order state.\n * requiere_receta = \"SI\" -> PENDIENTE_RECETA, expires fecha_creacion + 12h.\n * requiere_receta = \"NO\" -> EN_PREPARACION, no expiry.\n * Only enum states declared in setup-sheets.gs are ever produced.\n */\nfunction initialStateFor(requiereReceta, fechaCreacion) {\n  const fecha = fechaCreacion || new Date().toISOString();\n  if (normalize(requiereReceta) === 'si') {\n    const expira = new Date(Date.parse(fecha) + RECIPE_EXPIRY_HOURS * MILLISECONDS_PER_HOUR).toISOString();\n    return { estado: ESTADO_PENDIENTE_RECETA, fecha_expiracion: expira };\n  }\n  return { estado: ESTADO_EN_PREPARACION, fecha_expiracion: null };\n}\n\n/**\n * RF-03 — final reply copy (neutral professional Spanish; R-02 grounding:\n * every figure comes from the catalog/inventory rows, nothing is invented).\n */\nfunction buildReservationReply(orderRow, catalogRow) {\n  const head =\n    'Reserva confirmada. Tu código es #' + orderRow.codigo_far + ' — ' +\n    catalogRow.nombre_comercial + ' ' + catalogRow.dosis + ' x' + orderRow.cantidad + ', ' +\n    formatClp(orderRow.precio_total_clp) + ' en total.';\n  if (normalize(catalogRow.requiere_receta) === 'si') {\n    return head +\n      ' Su pedido quedó reservado por 12 horas. Envíe la foto de su receta médica a este chat indicando este código.';\n  }\n  return head + ' No requiere receta, ya pasó a preparación.';\n}\n\n/**\n * RF-03 / RF-04 — builds every write payload for one confirmed reservation:\n * the ordenes row, the updated inventario row (stock_reservado + cantidad), the\n * bitacora row and the expected post-write value used by the RNF-04 verification.\n */\nfunction buildCommitPayload(parsed, matchedRow, invRow, existingCodes, fechaCreacion) {\n  const p = parsed || {};\n  const quantity = Number(p.quantity) > 0 ? Math.floor(Number(p.quantity)) : 1;\n  const code = nextOrderCode(existingCodes);\n  const fecha = fechaCreacion || new Date().toISOString();\n  const initial = initialStateFor(matchedRow.requiere_receta, fecha);\n  const unit = Number(matchedRow.precio_unitario_clp);\n  const total = (isNaN(unit) ? 0 : unit) * quantity;\n  const current = Number(invRow.stock_reservado);\n  const currentSafe = isNaN(current) ? 0 : current;\n  const expected = currentSafe + quantity;\n\n  const order_row = {\n    codigo_far: code,\n    fecha_creacion: fecha,\n    rut: p.rut ? p.rut : '',\n    telefono: p.chat_id ? String(p.chat_id) : '',\n    nombre_cliente: '', // The channel gives chat id + RUT only; the name is never invented\n    medicamento_id: matchedRow.medicamento_id,\n    cantidad: quantity,\n    precio_total_clp: total,\n    estado: initial.estado,\n    url_receta: '',\n    fecha_receta: '',\n    fecha_expiracion: initial.fecha_expiracion ? initial.fecha_expiracion : '',\n    notas: ''\n  };\n\n  const inventory_row = {\n    medicamento_id: matchedRow.medicamento_id,\n    stock_real: Number(invRow.stock_real),\n    stock_reservado: expected, // RF-04: immediate increment\n    ultima_actualizacion: fecha\n  };\n\n  const despacho_row = {\n    codigo_far: code,\n    sector: p.sector ? String(p.sector) : '',\n    direccion: p.direccion ? String(p.direccion) : '',\n    estado_ruta: 'PENDIENTE',\n    eta_minutos: '',\n    fecha_marcado: ''\n  };\n\n  const bitacora_row = {\n    timestamp: fecha,\n    accion: BITACORA_ACCION_RESERVA,\n    codigo_far: code,\n    medicamento_id: matchedRow.medicamento_id,\n    delta_reservado: quantity,\n    detalle: 'Reserva inmediata US-05; stock_reservado ' + currentSafe + ' -> ' + expected,\n    estado_anterior: '',\n    estado_nuevo: initial.estado,\n    actor: 'cliente:' + (p.chat_id ? String(p.chat_id) : '')\n  };\n\n  return {\n    code: code,\n    order_row: order_row,\n    inventory_row: inventory_row,\n    bitacora_row: bitacora_row,\n    despacho_row: despacho_row,\n    expected_reservado: expected,\n    message: buildReservationReply(order_row, matchedRow)\n  };\n}\n\n/**\n * Produces the ONE item consumed by the IF branch and the write nodes.\n * decision = REJECT (nothing to write, message already final)\n *         |  COMMIT (code + order_row + inventory_row + bitacora_row + expected_reservado).\n */\nfunction evaluateReservation(parsed, catalogRows, inventoryRows, orderRows) {\n  const p = parsed || {};\n  const chatId = p.chat_id ? String(p.chat_id) : '';\n  const query = p.query ? String(p.query) : '';\n  const quantity = Number(p.quantity) > 0 ? Math.floor(Number(p.quantity)) : 1;\n  const reject = {\n    chat_id: chatId,\n    decision: 'REJECT',\n    code: '',\n    order_row: null,\n    inventory_row: null,\n    bitacora_row: null,\n    despacho_row: null,\n    expected_reservado: null,\n    message: ''\n  };\n\n  if (!chatId || !normalize(query)) {\n    reject.message =\n      'Para generar una reserva indique qué medicamento desea reservar (nombre comercial o principio activo).';\n    return reject;\n  }\n\n  const match = matchMedicine(query, catalogRows);\n  if (!match.matched) {\n    reject.message = buildReplyText(query, catalogRows, inventoryRows); // grounded: no name, no price, no stock\n    return reject;\n  }\n\n  const row = match.matched;\n\n  // Duplicate guard (GitHub #7): the same chat re-sending the same reservation\n  // within DUPLICATE_WINDOW_MS gets the existing order back, never a second one.\n  const dup = findRecentDuplicate(orderRows, chatId, row.medicamento_id, quantity, new Date());\n  if (dup) {\n    reject.decision = 'DUPLICATE';\n    reject.code = dup.codigo_far ? String(dup.codigo_far) : '';\n    reject.message =\n      'Tu pedido #' + (dup.codigo_far ? String(dup.codigo_far) : '') +\n      ' ya quedó registrado hace un momento; no lo dupliqué.';\n    return reject;\n  }\n\n  const inv = inventoryMap(inventoryRows).get(normalize(row.medicamento_id)) || null;\n  if (!inv) {\n    reject.message = buildReplyText(query, catalogRows, inventoryRows);\n    return reject;\n  }\n\n  const label = row.nombre_comercial + ' ' + row.dosis;\n  const stock = validateStock(quantity, inv, label);\n  if (!stock.ok) {\n    // AGOTADO reuses the exact US-04 agotamiento + bioequivalentes wording.\n    reject.message =\n      stock.reason === 'AGOTADO'\n        ? buildReplyText(query, catalogRows, inventoryRows)\n        : stock.message;\n    return reject;\n  }\n\n  // Delivery capture (GitHub #7): address + sector are required; the sector must\n  // be one of the three Peñalolén sectors. 'Otro' (or another comuna) is out of\n  // coverage for the prototype.\n  if (!normalize(p.direccion ? String(p.direccion) : '')) {\n    reject.message =\n      'Para coordinar la entrega necesito tu dirección y sector en el mismo mensaje. Formato: reservar ' +\n      row.nombre_comercial + ' x' + quantity + ' rut ' + (p.rut ? p.rut : '12.345.678-5') +\n      ', tu dirección, Peñalolén Alto.';\n    return reject;\n  }\n  if (!p.sector) {\n    reject.message =\n      'No pude identificar el sector de entrega. Indícame uno de: Peñalolén Alto, Peñalolén Nuevo o San Luis.';\n    return reject;\n  }\n  if (String(p.sector) === 'Otro') {\n    reject.message =\n      'Por ahora la entrega a domicilio cubre solo los sectores Peñalolén Alto, Peñalolén Nuevo y San Luis. Puedes corregir la dirección o retirar en la farmacia.';\n    return reject;\n  }\n  if (!p.rut) {\n    reject.message =\n      'Necesito tu RUT para registrar la reserva. Agrégalo al mensaje (por ejemplo: rut 12.345.678-5).';\n    return reject;\n  }\n\n  const codes = [];\n  const orders = orderRows || [];\n  for (let i = 0; i < orders.length; i++) codes.push(rowJson(orders[i]).codigo_far);\n\n  const payload = buildCommitPayload(p, row, inv, codes, new Date().toISOString());\n  return {\n    chat_id: chatId,\n    decision: 'COMMIT',\n    code: payload.code,\n    order_row: payload.order_row,\n    inventory_row: payload.inventory_row,\n    bitacora_row: payload.bitacora_row,\n    despacho_row: payload.despacho_row,\n    expected_reservado: payload.expected_reservado,\n    message: payload.message\n  };\n}\n\n/**\n * RNF-04 — post-write verification: does the re-read of `inventario` show the\n * expected stock_reservado for this medicamento_id?\n * CONCURRENCY NOTE (risk R-01): this closes the read-write-verify loop for ONE\n * execution. True cross-request serialization needs n8n queue mode + Redis and\n * is deferred to US-13; until then two simultaneous reservations of the last\n * unit can still interleave between the read and the update.\n */\nfunction verifyReservation(expectedReservado, reReadRows, medicamentoId) {\n  const rows = reReadRows || [];\n  let found = null;\n  for (let i = 0; i < rows.length; i++) {\n    const r = rowJson(rows[i]);\n    if (r && normalize(r.medicamento_id) === normalize(medicamentoId)) {\n      found = r;\n      break;\n    }\n  }\n  const expected = Number(expectedReservado);\n  const actual = found ? Number(found.stock_reservado) : NaN;\n  const ok = found !== null && !isNaN(actual) && actual === expected;\n  return { ok: ok, conflict: !ok, actual: found ? actual : null, expected: expected };\n}\n\n// --- n8n data assembly -------------------------------------------------------\n// Guarded: outside the editor (test harness) `$`/`$input` do not exist, so this\n// block stays inert and only the named functions above are reachable.\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  let raw = null;\n  try {\n    raw = $('parse_reservation').first().json;\n  } catch (err) {\n    raw = null;\n  }\n  if (!raw) return []; // no parsed message -> nothing to evaluate, nothing to send\n  // Re-parse the raw text so this node owns the runtime copy of the parser\n  // (the parse node exposes { chat_id, query, quantity, rut } as specified).\n  const parsed = raw.text\n    ? Object.assign(parseReservationText(raw.text), { chat_id: raw.chat_id })\n    : raw;\n  const catalogRows = $('read_catalogo').all();\n  const inventoryRows = $('read_inventario').all();\n  const orderRows = $input.all(); // read_ordenes feeds this node directly\n  return [{ json: evaluateReservation(parsed, catalogRows, inventoryRows, orderRows) }];\n}\n"
+      },
+      "id": "nev05",
+      "name": "evaluate_reservation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "notes": "Fuzzy match (duplicated from US-04, drift-guarded by scripts/test-reserva.mjs) + RF-03 code + RF-04 stock validation + D-01 provisional initial state. Emits ONE item: { chat_id, decision, code, order_row, inventory_row, bitacora_row, expected_reservado, message }."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us05-cond-commit",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "COMMIT",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "nif05",
+      "name": "if_decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        0
+      ],
+      "notes": "true = COMMIT (writes), false = REJECT (no write, message already final)."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $('evaluate_reservation').first().json.order_row.codigo_far }}",
+            "fecha_creacion": "={{ $('evaluate_reservation').first().json.order_row.fecha_creacion }}",
+            "rut": "={{ $('evaluate_reservation').first().json.order_row.rut }}",
+            "telefono": "={{ $('evaluate_reservation').first().json.order_row.telefono }}",
+            "nombre_cliente": "={{ $('evaluate_reservation').first().json.order_row.nombre_cliente }}",
+            "medicamento_id": "={{ $('evaluate_reservation').first().json.order_row.medicamento_id }}",
+            "cantidad": "={{ $('evaluate_reservation').first().json.order_row.cantidad }}",
+            "precio_total_clp": "={{ $('evaluate_reservation').first().json.order_row.precio_total_clp }}",
+            "estado": "={{ $('evaluate_reservation').first().json.order_row.estado }}",
+            "url_receta": "={{ $('evaluate_reservation').first().json.order_row.url_receta }}",
+            "fecha_receta": "={{ $('evaluate_reservation').first().json.order_row.fecha_receta }}",
+            "fecha_expiracion": "={{ $('evaluate_reservation').first().json.order_row.fecha_expiracion }}",
+            "notas": "={{ $('evaluate_reservation').first().json.order_row.notas }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "nao05",
+      "name": "append_orden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1680,
+        -200
+      ],
+      "notes": "Write 1/4 (RF-03, D-01 provisional): appends the order row with codigo_far, estado and fecha_expiracion built by evaluate_reservation."
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "medicamento_id": "={{ $('evaluate_reservation').first().json.inventory_row.medicamento_id }}",
+            "stock_real": "={{ $('evaluate_reservation').first().json.inventory_row.stock_real }}",
+            "stock_reservado": "={{ $('evaluate_reservation').first().json.inventory_row.stock_reservado }}",
+            "ultima_actualizacion": "={{ $('evaluate_reservation').first().json.inventory_row.ultima_actualizacion }}"
+          },
+          "matchingColumns": [
+            "medicamento_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "nui05",
+      "name": "update_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1920,
+        -200
+      ],
+      "notes": "CHOICE: operation 'appendOrUpdate' keyed on medicamento_id (tv4.5 exposes matchingColumns) instead of 'update' by row index, so a row insert cannot misroute the increment. OPEN RISK: parameter-level validation happens on first import (mappingMode/columns schema are not validated offline). stock_reservado is set to the expected absolute value; stock_neto is left alone because it is a formula column."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "bitacora"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $('evaluate_reservation').first().json.bitacora_row.timestamp }}",
+            "accion": "={{ $('evaluate_reservation').first().json.bitacora_row.accion }}",
+            "codigo_far": "={{ $('evaluate_reservation').first().json.bitacora_row.codigo_far }}",
+            "medicamento_id": "={{ $('evaluate_reservation').first().json.bitacora_row.medicamento_id }}",
+            "delta_reservado": "={{ $('evaluate_reservation').first().json.bitacora_row.delta_reservado }}",
+            "detalle": "={{ $('evaluate_reservation').first().json.bitacora_row.detalle }}",
+            "estado_anterior": "={{ $('evaluate_reservation').first().json.bitacora_row.estado_anterior }}",
+            "estado_nuevo": "={{ $('evaluate_reservation').first().json.bitacora_row.estado_nuevo }}",
+            "actor": "={{ $('evaluate_reservation').first().json.bitacora_row.actor }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "nba05",
+      "name": "append_bitacora",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2160,
+        -200
+      ],
+      "notes": "Write 3/4 (RF-04): audit trail accion = RESERVA_ALTA with delta_reservado = cantidad."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "despachos"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $('evaluate_reservation').first().json.despacho_row.codigo_far }}",
+            "sector": "={{ $('evaluate_reservation').first().json.despacho_row.sector }}",
+            "direccion": "={{ $('evaluate_reservation').first().json.despacho_row.direccion }}",
+            "estado_ruta": "={{ $('evaluate_reservation').first().json.despacho_row.estado_ruta }}",
+            "eta_minutos": "={{ $('evaluate_reservation').first().json.despacho_row.eta_minutos }}",
+            "fecha_marcado": "={{ $('evaluate_reservation').first().json.despacho_row.fecha_marcado }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "name": "append_despacho",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1960,
+        96
+      ],
+      "id": "us05-node-despacho"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_SPREADSHEET_ID",
+          "cachedResultName": "Farmacia Municipal Catalogo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:E"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "nvr05",
+      "name": "verify_reservation",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2400,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-05 — finalize_reply.\n *\n * REJECT items already carry the final message (nothing was written) and are\n * forwarded untouched. COMMIT items are verified against the post-write re-read\n * of `inventario` (RNF-04): a mismatch is NEVER silent — the reply is flagged\n * with CONFLICTO_INVENTARIO so the customer and the pharmacy both see it.\n */\nfunction normalize(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n}\n\nfunction rowJson(item) {\n  return item && item.json ? item.json : item;\n}\n\n/**\n * RNF-04 — compares the expected stock_reservado against the re-read rows.\n * Returns { ok, conflict, actual, expected }; a missing row counts as a conflict.\n * Cross-request serialization (queue mode + Redis) is deferred to US-13 (risk R-01).\n */\nfunction verifyReservation(expectedReservado, reReadRows, medicamentoId) {\n  const rows = reReadRows || [];\n  let found = null;\n  for (let i = 0; i < rows.length; i++) {\n    const r = rowJson(rows[i]);\n    if (r && normalize(r.medicamento_id) === normalize(medicamentoId)) {\n      found = r;\n      break;\n    }\n  }\n  const expected = Number(expectedReservado);\n  const actual = found ? Number(found.stock_reservado) : NaN;\n  const ok = found !== null && !isNaN(actual) && actual === expected;\n  return { ok: ok, conflict: !ok, actual: found ? actual : null, expected: expected };\n}\n\n// --- n8n data assembly -------------------------------------------------------\n// Guarded: outside the editor (test harness) `$`/`$input` do not exist, so this\n// block stays inert and only the named functions above are reachable.\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  const ev = $('evaluate_reservation').first().json;\n  if (!ev || ev.decision !== 'COMMIT') {\n    // REJECT: the message was already built by evaluate_reservation.\n    return [{ json: { chat_id: ev ? ev.chat_id : '', message: ev ? ev.message : '', conflict: false } }];\n  }\n  const check = verifyReservation(ev.expected_reservado, $input.all(), ev.inventory_row.medicamento_id);\n  let message = ev.message;\n  if (!check.ok) {\n    message +=\n      '\\n\\nAviso: CONFLICTO_INVENTARIO — la verificación posterior a la escritura no confirmó el stock reservado esperado (' +\n      ev.expected_reservado + ' unidades). El inventario será revisado manualmente. Disculpe las molestias.';\n  }\n  return [{ json: { chat_id: ev.chat_id, message: message, conflict: !check.ok } }];\n}\n"
+      },
+      "id": "nfn05",
+      "name": "finalize_reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ],
+      "notes": "REJECT path forwards the pre-built message; COMMIT path re-reads inventario and flags CONFLICTO_INVENTARIO on mismatch (RNF-04). Emits { chat_id, message }."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "id": "nsw05",
+      "name": "send_telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "webhook_reserva": {
+      "main": [
+        [
+          {
+            "node": "parse_reservation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_reservation": {
+      "main": [
+        [
+          {
+            "node": "read_catalogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_catalogo": {
+      "main": [
+        [
+          {
+            "node": "read_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_inventario": {
+      "main": [
+        [
+          {
+            "node": "read_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          {
+            "node": "evaluate_reservation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "evaluate_reservation": {
+      "main": [
+        [
+          {
+            "node": "if_decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_decision": {
+      "main": [
+        [
+          {
+            "node": "append_orden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "finalize_reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_orden": {
+      "main": [
+        [
+          {
+            "node": "update_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_inventario": {
+      "main": [
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_bitacora": {
+      "main": [
+        [
+          {
+            "node": "append_despacho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verify_reservation": {
+      "main": [
+        [
+          {
+            "node": "finalize_reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "finalize_reply": {
+      "main": [
+        [
+          {
+            "node": "send_telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_despacho": {
+      "main": [
+        [
+          {
+            "node": "verify_reservation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "us05-reserva-3b7e91c4-8f2d-4a6b-9c05-5e1d7a2f4b83",
+  "tags": []
+}
