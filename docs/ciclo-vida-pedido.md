@@ -22,7 +22,7 @@ Exactamente la enumeración de `ordenes.estado` definida en [`google-sheets-sche
 |---|---|---|
 | Cliente (bot) | `chat_id` de Telegram (columna `telefono` de `ordenes`) | Consultar stock, reservar, enviar su receta, consultar el estado de sus pedidos |
 | Farmacéutico | `chat_id` incluido en `TELEGRAM_PHARMACIST_CHAT_IDS` | Aprobar o rechazar recetas por Telegram (US-20) |
-| Operador / conductor | PWA del repartidor (US-11) | Marcar `EN_RUTA` y `ENTREGADO` en `despachos.estado_ruta` |
+| Personal de despacho | `chat_id` incluido en `TELEGRAM_STAFF_CHAT_IDS` (o, si está vacía, en `TELEGRAM_PHARMACIST_CHAT_IDS`) | Marcar `EN_RUTA` y `ENTREGADO` por comando de Telegram (US-22) |
 | Sistema | Cron horario (US-10) | Expirar reservas vencidas sin receta |
 
 ## Matriz de transiciones autorizadas
@@ -35,8 +35,8 @@ Exactamente la enumeración de `ordenes.estado` definida en [`google-sheets-sche
 | 4 | `RECETA_RECIBIDA` → `EN_PREPARACION` | Farmacéutico (US-20) | Chat autorizado + comando `aprobar FAR-XXXX` | Sin cambio | `RECETA_APROBADA` |
 | 5 | `RECETA_RECIBIDA` → `RECHAZADO` | Farmacéutico (US-20) | Chat autorizado + comando `rechazar FAR-XXXX [motivo]` | −`cantidad` (una sola vez) | `RECETA_RECHAZADA` |
 | 6 | `PENDIENTE_RECETA` → `CANCELADO_EXPIRADO` | Sistema (US-10) | `fecha_expiracion` vencida sin receta | −`cantidad` (una sola vez) | `EXPIRACION` |
-| 7 | `EN_PREPARACION` → `EN_RUTA` | Operador / conductor (US-11) | Pedido despachado | Sin cambio | Pendiente (ver brechas) |
-| 8 | `EN_RUTA` → `ENTREGADO` | Conductor (US-11) | Entrega confirmada | Sin cambio | Pendiente (ver brechas) |
+| 7 | `EN_PREPARACION` → `EN_RUTA` | Personal (US-22) | Chat autorizado + comando `en ruta FAR-XXXX` | Sin cambio | `DESPACHO_EN_RUTA` |
+| 8 | `EN_RUTA` → `ENTREGADO` | Personal (US-22) | Chat autorizado + comando `entregado FAR-XXXX` | −`cantidad` en `stock_real` y en `stock_reservado` (una sola vez) | `PEDIDO_ENTREGADO` |
 
 Transiciones **prohibidas** (se rechazan sin tocar el pedido ni el stock):
 
@@ -46,7 +46,7 @@ Transiciones **prohibidas** (se rechazan sin tocar el pedido ni el stock):
 
 ## Reglas de idempotencia
 
-- **El estado de origen es la guarda:** cada transición valida primero el estado actual del pedido (US-20 y US-10). Un comando repetido, un reintento o una reentrega de Telegram no produce escrituras ni libera stock dos veces.
+- **El estado de origen es la guarda:** cada transición valida primero el estado actual del pedido (US-10, US-20 y US-22). Un comando repetido, un reintento o una reentrega de Telegram no produce escrituras ni libera stock dos veces.
 - **El stock nunca queda negativo:** las liberaciones aplican `max(0, stock_reservado − cantidad)`.
 - **Duplicados recientes:** un reenvío idéntico del mismo chat (mismo medicamento y cantidad dentro de 2 minutos) devuelve la reserva existente y no escribe nada (US-05).
 - **Una operación, una fila:** cada cambio de estado con efecto en stock escribe su movimiento en `bitacora` en la misma ejecución.
@@ -62,7 +62,8 @@ Columnas de `bitacora`: `timestamp`, `accion`, `codigo_far`, `medicamento_id`, `
 - **Auditoría alineada:** los flujos que cambian `ordenes.estado` (US-05, US-09, US-10 y US-20) completan `estado_anterior`, `estado_nuevo` y `actor` en su bitácora.
 - **Titularidad cubierta (GitHub #19):** la receta y la consulta de estado solo se aceptan desde el chat que creó el pedido; los mensajes de "no encontrado" son idénticos para código inexistente y chat ajeno (ver [identidad-roles.md](./identidad-roles.md)).
 - **Cancelación por el cliente:** no implementada; cuando exista, debe liberar stock exactamente una vez y registrarse como las demás transiciones.
-- **PWA (US-11):** escribe `despachos.estado_ruta` sin bitácora; su backend definitivo debe emitirla (GitHub #13).
+- **Despacho (US-22, resuelto en el Sprint 2):** las transiciones 7 y 8 las marca el personal por Telegram con bitácora completa, aviso al vecino y descuento final del stock. La PWA del conductor (US-11) queda fuera del alcance firmado y conserva su modo demostración; si se retoma, debe usar la misma matriz y la misma bitácora.
+- **Serialización (RNF-04):** n8n procesa una ejecución de producción a la vez (`N8N_CONCURRENCY_PRODUCTION_LIMIT=1`) y el router espera a cada subflujo, de modo que dos transiciones sobre el mismo inventario no se intercalan. La prueba de carga formal es US-13 (Sprint 3).
 
 ## Decisión D-01 (resuelta el 16-oct-2026)
 

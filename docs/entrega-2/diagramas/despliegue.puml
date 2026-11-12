@@ -1,0 +1,50 @@
+@startuml despliegue
+!include estilo.iuml
+title Diagrama de despliegue · Entorno local reproducible (Sprint 2)
+
+node "Teléfono del vecino" as Tel {
+  artifact "App Telegram" as AppTG
+}
+node "Teléfono del personal" as TelP {
+  artifact "App Telegram " as AppTG2
+}
+cloud "Telegram (servidores)" as TGs
+cloud "Cloudflare (borde)" as CF {
+  artifact "*.trycloudflare.com\n(URL nueva en cada arranque)" as URL
+}
+node "Computador del integrante" as PC {
+  node "Docker Desktop" {
+    node "farmacia-n8n\nn8nio/n8n:2.44.2" as N8N {
+      artifact "9 workflows publicados\n(ID fijos farmaciaUS..)" as WF
+      artifact "credenciales cifradas (N8N_ENCRYPTION_KEY):\ngoogleApi (Sheets) · Drive OAuth2" as CRED
+    }
+    database "volumen n8n_data\n(SQLite; ejecuciones 7 días)" as VOL
+    node "farmacia-tunel-rapido\ncloudflare/cloudflared:2026.10.1" as CFD
+  }
+  artifact ".env (ignorado)" as ENV
+  artifact "secrets/service-account.json\nsecrets/oauth-client.json (ignorados)" as SA
+  artifact "scripts/local/levantar · doctor\ncargar-catalogo" as SCR
+}
+cloud "Google Cloud" as GC {
+  database "Google Sheets" as GS
+  database "Drive · carpeta de recetas (OAuth)" as GD
+}
+
+AppTG --> TGs : HTTPS
+AppTG2 --> TGs : HTTPS
+TGs --> URL : HTTPS webhook\n(secret_token)
+URL --> CFD : túnel saliente (sin abrir puertos)
+CFD --> N8N : http://n8n:5678\n(red interna de compose)
+N8N --> VOL
+N8N --> GS : HTTPS (JWT cuenta de servicio)
+N8N --> GD : HTTPS
+N8N --> TGs : sendMessage / getFile
+SCR ..> ENV : lee y genera claves
+SCR ..> SA : arma la credencial
+SCR ..> N8N : docker exec n8n import / publish
+SCR ..> TGs : setWebhook
+note bottom of PC
+  n8n escucha solo en 127.0.0.1:5678.
+  Lo único público es el túnel saliente.
+end note
+@enduml

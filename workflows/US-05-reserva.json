@@ -1,29 +1,25 @@
 {
+  "id": "farmaciaUS05rese",
   "name": "US-05 Reserva con Código Transaccional",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "telegram-reserva",
-        "responseMode": "onReceived",
-        "webhookId": "us05-webhook-reserva",
-        "options": {}
+        "inputSource": "passthrough"
       },
       "id": "nwr05",
-      "name": "webhook_reserva",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "name": "entrada_router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [
         0,
         0
       ],
-      "webhookId": "us05-webhook-reserva",
-      "notes": "responseMode onReceived returns an immediate 200 to Telegram before any processing (RNF-01): parsing, the three Sheets reads, evaluation and all writes run after the ack."
+      "notes": "Entrada interna: el router de Telegram (US-17, webhook telegram-bot) invoca este flujo con el mismo update y encabezados. Antes: webhook POST telegram-reserva."
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * US-05 — parse_reservation.\n *\n * Extracts the incoming Telegram text message from the webhook payload and\n * applies the reservation parsing rules in the specified order:\n *   1) quantity, 2) RUT (captured for the order row and removed from the\n *   medication query), 3) leading intent keywords.\n * Outputs ONE item { chat_id, query, quantity, rut, text } or an EMPTY array.\n * Never throws: malformed payloads are dropped silently.\n */\n\n/** quantity patterns, tried in the specified order. */\nfunction extractQuantity(text) {\n  let m = / x\\s*(\\d{1,3})\\s*$/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  m = /(\\d{1,3})\\s*(?:unidades|uds|u)\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  // Generic \"xN\" form: the delivery-block format keeps the quantity mid-text\n  // (\"reservar X x2 rut ..., dirección, sector\"), no longer only at the end.\n  m = /\\bx\\s*(\\d{1,3})\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  return null;\n}\n\n/**\n * Parse a free-text reservation request: quantity -> RUT -> intent keywords.\n * Returns { query, quantity, rut } — never throws.\n */\n/**\n * Parses a free-text reservation request: quantity -> RUT -> intent keywords,\n * then the delivery block as comma-separated segments:\n *   [producto], [dirección], [sector]\n * The sector is matched tolerantly (accents/case); an unknown sector stays\n * empty and another comuna maps to 'Otro' (out of coverage).\n * Returns { query, quantity, rut, direccion, sector } — never throws.\n */\nfunction parseReservationText(text) {\n  const SECTOR_MATCHERS = [\n    { name: 'Peñalolén Alto', re: /pe[nñ]alol[eé]n\\s+alto/i },\n    { name: 'Peñalolén Nuevo', re: /pe[nñ]alol[eé]n\\s+nuevo/i },\n    { name: 'San Luis', re: /san\\s+luis/i },\n    { name: 'Otro', re: /otra?\\s+comuna|fuera\\s+de\\s+pe[nñ]alol[eé]n|\\botro\\b/i }\n  ];\n  const OUT_OF_COVERAGE_COMUNAS = /(nunoa|la reina|macul|la florida|puente alto|san joaquin|la cisterna|el bosque|san ramon|la granja)/;\n\n  function normalizeDeliveryText(value) {\n    return String(value === null || value === undefined ? '' : value)\n      .toLowerCase()\n      .normalize('NFD')\n      .replace(/[\\u0300-\\u036f]/g, '');\n  }\n\n  function pullSector(segment) {\n    for (let m = 0; m < SECTOR_MATCHERS.length; m++) {\n      const hit = SECTOR_MATCHERS[m];\n      if (hit.re.test(segment)) {\n        return { sector: hit.name, rest: segment.replace(hit.re, ' ') };\n      }\n    }\n    return { sector: '', rest: segment };\n  }\n\n  const raw = String(text === null || text === undefined ? '' : text).trim();\n  let working = raw;\n\n  // 1) quantity — tried on the raw text first (spec order).\n  const firstPass = extractQuantity(working);\n\n  // 2) RUT — captured for the order row and removed from the medication query.\n  const rutMatch = /\\b(\\d{1,2}\\.?\\d{3}\\.?\\d{3}-[\\dkK])\\b/i.exec(working);\n  const rut = rutMatch ? rutMatch[1] : '';\n  if (rutMatch) {\n    working = working.replace(rutMatch[0], ' ');\n    working = working.replace(/\\brut\\b/ig, ' '); // \"rut\" is a field label, not part of the name\n  }\n\n  // 1b) quantity retried once the trailing RUT block is gone.\n  let quantity = firstPass ? firstPass.quantity : null;\n  let quantityText = firstPass ? firstPass.matchText : '';\n  if (quantity === null) {\n    const secondPass = extractQuantity(working);\n    if (secondPass) {\n      quantity = secondPass.quantity;\n      quantityText = secondPass.matchText;\n    }\n  }\n  if (quantityText) working = working.replace(quantityText, ' ');\n  if (quantity === null || isNaN(quantity)) quantity = 1;\n\n  // 3) leading intent keywords are stripped.\n  working = working.replace(/^\\s*(?:(?:reservar|reserva|encargar|encargo|comprar|lo quiero)\\s*)+/i, ' ');\n\n  // 4) delivery block: comma-separated segments — [producto], [dirección], [sector].\n  const segments = working\n    .split(',')\n    .map(function (s) { return s.replace(/\\s+/g, ' ').trim(); })\n    .filter(function (s) { return s.length > 0; });\n\n  let query = segments.length ? segments[0] : '';\n  let direccion = '';\n  let sector = '';\n\n  if (segments.length > 1) {\n    for (let i = 1; i < segments.length; i++) {\n      let seg = segments[i];\n      if (!sector) {\n        const pulled = pullSector(seg);\n        sector = pulled.sector;\n        seg = pulled.rest;\n      }\n      seg = seg.replace(/\\s+/g, ' ').trim();\n      if (seg) direccion = direccion ? direccion + ', ' + seg : seg;\n    }\n  } else if (query) {\n    // Single segment: a trailing sector word still counts as sector.\n    const pulled = pullSector(query);\n    if (pulled.sector) {\n      sector = pulled.sector;\n      query = pulled.rest.replace(/\\s+/g, ' ').trim();\n    }\n  }\n\n  if (!sector && direccion && OUT_OF_COVERAGE_COMUNAS.test(normalizeDeliveryText(direccion))) {\n    sector = 'Otro';\n    direccion = direccion\n      .replace(OUT_OF_COVERAGE_COMUNAS, ' ')\n      .replace(/\\s+/g, ' ')\n      .replace(/^[,\\s]+|[,\\s]+$/g, '');\n  }\n\n  direccion = direccion\n    .replace(/^(?:direccion|dir|domicilio|entrega|envio|en)\\s*:?\\s*/i, '')\n    .trim();\n  if (direccion.length > 120) direccion = direccion.slice(0, 120).trim();\n\n  return {\n    query: query,\n    quantity: quantity,\n    rut: rut,\n    direccion: direccion,\n    sector: sector\n  };\n}\n\n// --- Telegram webhook secret (pure function, tested outside n8n) ------------\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item\n * { chat_id, query, quantity, rut, text } or an EMPTY array.\n * Unauthorized, missing-message and non-text updates return [] (silent drop;\n * the immediate 200 was already returned — RNF-01). Never throws.\n */\nfunction parseTelegramUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return []; // non-text message -> drop\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  const parsed = parseReservationText(text);\n  return [\n    {\n      json: {\n        chat_id: chat,\n        query: parsed.query,\n        quantity: parsed.quantity,\n        rut: parsed.rut,\n        direccion: parsed.direccion,\n        sector: parsed.sector,\n        text: text\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update =\n        json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        process.env.TELEGRAM_WEBHOOK_SECRET\n      );\n      if (out.length) return out; // ONE item per webhook payload\n    }\n  } catch (err) {\n    return []; // malformed payload -> drop, never throw\n  }\n  return [];\n}\n"
+        "jsCode": "/**\n * US-05 — parse_reservation.\n *\n * Extracts the incoming Telegram text message from the webhook payload and\n * applies the reservation parsing rules in the specified order:\n *   1) quantity, 2) RUT (captured for the order row and removed from the\n *   medication query), 3) leading intent keywords.\n * Outputs ONE item { chat_id, query, quantity, rut, text } or an EMPTY array.\n * Never throws: malformed payloads are dropped silently.\n */\n\n/** quantity patterns, tried in the specified order. */\nfunction extractQuantity(text) {\n  let m = / x\\s*(\\d{1,3})\\s*$/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  m = /(\\d{1,3})\\s*(?:unidades|uds|u)\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  // Generic \"xN\" form: the delivery-block format keeps the quantity mid-text\n  // (\"reservar X x2 rut ..., dirección, sector\"), no longer only at the end.\n  m = /\\bx\\s*(\\d{1,3})\\b/i.exec(text);\n  if (m) return { quantity: parseInt(m[1], 10), matchText: m[0] };\n  return null;\n}\n\n/**\n * Parse a free-text reservation request: quantity -> RUT -> intent keywords.\n * Returns { query, quantity, rut } — never throws.\n */\n/**\n * Parses a free-text reservation request: quantity -> RUT -> intent keywords,\n * then the delivery block as comma-separated segments:\n *   [producto], [dirección], [sector]\n * The sector is matched tolerantly (accents/case); an unknown sector stays\n * empty and another comuna maps to 'Otro' (out of coverage).\n * Returns { query, quantity, rut, direccion, sector } — never throws.\n */\nfunction parseReservationText(text) {\n  const SECTOR_MATCHERS = [\n    { name: 'Peñalolén Alto', re: /pe[nñ]alol[eé]n\\s+alto/i },\n    { name: 'Peñalolén Nuevo', re: /pe[nñ]alol[eé]n\\s+nuevo/i },\n    { name: 'San Luis', re: /san\\s+luis/i },\n    { name: 'Otro', re: /otra?\\s+comuna|fuera\\s+de\\s+pe[nñ]alol[eé]n|\\botro\\b/i }\n  ];\n  const OUT_OF_COVERAGE_COMUNAS = /(nunoa|la reina|macul|la florida|puente alto|san joaquin|la cisterna|el bosque|san ramon|la granja)/;\n\n  function normalizeDeliveryText(value) {\n    return String(value === null || value === undefined ? '' : value)\n      .toLowerCase()\n      .normalize('NFD')\n      .replace(/[\\u0300-\\u036f]/g, '');\n  }\n\n  function pullSector(segment) {\n    for (let m = 0; m < SECTOR_MATCHERS.length; m++) {\n      const hit = SECTOR_MATCHERS[m];\n      if (hit.re.test(segment)) {\n        return { sector: hit.name, rest: segment.replace(hit.re, ' ') };\n      }\n    }\n    return { sector: '', rest: segment };\n  }\n\n  const raw = String(text === null || text === undefined ? '' : text).trim();\n  let working = raw;\n\n  // 1) quantity — tried on the raw text first (spec order).\n  const firstPass = extractQuantity(working);\n\n  // 2) RUT — captured for the order row and removed from the medication query.\n  const rutMatch = /\\b(\\d{1,2}\\.?\\d{3}\\.?\\d{3}-[\\dkK])\\b/i.exec(working);\n  const rut = rutMatch ? rutMatch[1] : '';\n  if (rutMatch) {\n    working = working.replace(rutMatch[0], ' ');\n    working = working.replace(/\\brut\\b/ig, ' '); // \"rut\" is a field label, not part of the name\n  }\n\n  // 1b) quantity retried once the trailing RUT block is gone.\n  let quantity = firstPass ? firstPass.quantity : null;\n  let quantityText = firstPass ? firstPass.matchText : '';\n  if (quantity === null) {\n    const secondPass = extractQuantity(working);\n    if (secondPass) {\n      quantity = secondPass.quantity;\n      quantityText = secondPass.matchText;\n    }\n  }\n  if (quantityText) working = working.replace(quantityText, ' ');\n  if (quantity === null || isNaN(quantity)) quantity = 1;\n\n  // 3) leading intent keywords are stripped.\n  working = working.replace(/^\\s*(?:(?:reservar|reserva|encargar|encargo|comprar|lo quiero)\\s*)+/i, ' ');\n\n  // 4) delivery block: comma-separated segments — [producto], [dirección], [sector].\n  const segments = working\n    .split(',')\n    .map(function (s) { return s.replace(/\\s+/g, ' ').trim(); })\n    .filter(function (s) { return s.length > 0; });\n\n  let query = segments.length ? segments[0] : '';\n  let direccion = '';\n  let sector = '';\n\n  if (segments.length > 1) {\n    for (let i = 1; i < segments.length; i++) {\n      let seg = segments[i];\n      if (!sector) {\n        const pulled = pullSector(seg);\n        sector = pulled.sector;\n        seg = pulled.rest;\n      }\n      seg = seg.replace(/\\s+/g, ' ').trim();\n      if (seg) direccion = direccion ? direccion + ', ' + seg : seg;\n    }\n  } else if (query) {\n    // Single segment: a trailing sector word still counts as sector.\n    const pulled = pullSector(query);\n    if (pulled.sector) {\n      sector = pulled.sector;\n      query = pulled.rest.replace(/\\s+/g, ' ').trim();\n    }\n  }\n\n  if (!sector && direccion && OUT_OF_COVERAGE_COMUNAS.test(normalizeDeliveryText(direccion))) {\n    sector = 'Otro';\n    direccion = direccion\n      .replace(OUT_OF_COVERAGE_COMUNAS, ' ')\n      .replace(/\\s+/g, ' ')\n      .replace(/^[,\\s]+|[,\\s]+$/g, '');\n  }\n\n  direccion = direccion\n    .replace(/^(?:direccion|dir|domicilio|entrega|envio|en)\\s*:?\\s*/i, '')\n    .trim();\n  if (direccion.length > 120) direccion = direccion.slice(0, 120).trim();\n\n  return {\n    query: query,\n    quantity: quantity,\n    rut: rut,\n    direccion: direccion,\n    sector: sector\n  };\n}\n\n// --- Telegram webhook secret (pure function, tested outside n8n) ------------\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item\n * { chat_id, query, quantity, rut, text } or an EMPTY array.\n * Unauthorized, missing-message and non-text updates return [] (silent drop;\n * the immediate 200 was already returned — RNF-01). Never throws.\n */\nfunction parseTelegramUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return []; // non-text message -> drop\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  const parsed = parseReservationText(text);\n  return [\n    {\n      json: {\n        chat_id: chat,\n        query: parsed.query,\n        quantity: parsed.quantity,\n        rut: parsed.rut,\n        direccion: parsed.direccion,\n        sector: parsed.sector,\n        text: text\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update =\n        json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        $env.TELEGRAM_WEBHOOK_SECRET\n      );\n      if (out.length) return out; // ONE item per webhook payload\n    }\n  } catch (err) {\n    return []; // malformed payload -> drop, never throw\n  }\n  return [];\n}\n"
       },
       "id": "npr05",
       "name": "parse_reservation",
@@ -37,12 +33,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -65,16 +61,27 @@
       "position": [
         480,
         0
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -97,16 +104,27 @@
       "position": [
         720,
         0
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -129,7 +147,18 @@
       "position": [
         960,
         0
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
@@ -183,12 +212,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -213,7 +242,125 @@
             "notas": "={{ $('evaluate_reservation').first().json.order_row.notas }}"
           },
           "matchingColumns": [],
-          "schema": []
+          "schema": [
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_creacion",
+              "displayName": "fecha_creacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rut",
+              "displayName": "rut",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_cliente",
+              "displayName": "nombre_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cantidad",
+              "displayName": "cantidad",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "precio_total_clp",
+              "displayName": "precio_total_clp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url_receta",
+              "displayName": "url_receta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_receta",
+              "displayName": "fecha_receta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_expiracion",
+              "displayName": "fecha_expiracion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notas",
+              "displayName": "notas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -225,16 +372,25 @@
         1680,
         -200
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "notes": "Write 1/4 (RF-03, D-01 provisional): appends the order row with codigo_far, estado and fecha_expiracion built by evaluate_reservation."
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -252,7 +408,44 @@
           "matchingColumns": [
             "medicamento_id"
           ],
-          "schema": []
+          "schema": [
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock_real",
+              "displayName": "stock_real",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock_reservado",
+              "displayName": "stock_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ultima_actualizacion",
+              "displayName": "ultima_actualizacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -264,16 +457,25 @@
         1920,
         -200
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "notes": "CHOICE: operation 'appendOrUpdate' keyed on medicamento_id (tv4.5 exposes matchingColumns) instead of 'update' by row index, so a row insert cannot misroute the increment. OPEN RISK: parameter-level validation happens on first import (mappingMode/columns schema are not validated offline). stock_reservado is set to the expected absolute value; stock_neto is left alone because it is a formula column."
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -294,7 +496,89 @@
             "actor": "={{ $('evaluate_reservation').first().json.bitacora_row.actor }}"
           },
           "matchingColumns": [],
-          "schema": []
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "delta_reservado",
+              "displayName": "delta_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "detalle",
+              "displayName": "detalle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_anterior",
+              "displayName": "estado_anterior",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_nuevo",
+              "displayName": "estado_nuevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -306,16 +590,25 @@
         2160,
         -200
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "notes": "Write 3/4 (RF-04): audit trail accion = RESERVA_ALTA with delta_reservado = cantidad."
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -333,7 +626,62 @@
             "fecha_marcado": "={{ $('evaluate_reservation').first().json.despacho_row.fecha_marcado }}"
           },
           "matchingColumns": [],
-          "schema": []
+          "schema": [
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sector",
+              "displayName": "sector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direccion",
+              "displayName": "direccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_ruta",
+              "displayName": "estado_ruta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "eta_minutos",
+              "displayName": "eta_minutos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_marcado",
+              "displayName": "fecha_marcado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -344,16 +692,25 @@
         1960,
         96
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "id": "us05-node-despacho"
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -376,7 +733,18 @@
       "position": [
         2400,
         -200
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
@@ -396,10 +764,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.message }) }}",
         "options": {}
       },
       "id": "nsw05",
@@ -416,7 +784,7 @@
     }
   ],
   "connections": {
-    "webhook_reserva": {
+    "entrada_router": {
       "main": [
         [
           {
@@ -569,12 +937,13 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "farmaciaUS21aler"
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "versionId": "us05-reserva-3b7e91c4-8f2d-4a6b-9c05-5e1d7a2f4b83",
+  "versionId": "79834424-50b9-44ec-b0ff-5dce320d22e5",
   "tags": []
 }

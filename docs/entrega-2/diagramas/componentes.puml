@@ -1,0 +1,72 @@
+@startuml componentes
+!include estilo.iuml
+title Diagrama de componentes · Asistente de la Farmacia Comunitaria (Sprint 2)
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 55
+
+actor "Vecino" as Vecino
+actor "Químico farmacéutico\ny personal" as Personal
+
+rectangle "Telegram" as TGBOX {
+  component "Telegram Bot API" as TG
+}
+rectangle "Cloudflare" as CFBOX {
+  component "Túnel rápido\n(trycloudflare)" as Tunel
+}
+
+interface "Webhook HTTPS\n/webhook/telegram-bot\n(secret_token)" as IWebhook
+
+rectangle "n8n 2.44.2 en Docker · una ejecución de producción a la vez (RNF-04)" as N8N {
+  component "Router de intenciones\nUS-17" as Router
+  interface "Execute Workflow\n(interno)" as IExec
+  rectangle "Subflujos de negocio" as SUB {
+    component "Consulta\nUS-04" as C04
+    component "Reserva\nUS-05" as C05
+    component "Estado\nUS-06" as C06
+    component "Recetas\nUS-09" as C09
+    component "Aprobación\nUS-20" as C20
+    component "Despacho\nUS-22" as C22
+  }
+  component "Expiración 12 h\nUS-10 (cron)" as C10
+  component "Alertas de error\nUS-21" as C21
+}
+
+interface "Bot API\nsendMessage · getFile" as ISend
+interface "Sheets API v4" as ISheets
+interface "Drive API v3\n(OAuth2)" as IDrive
+interface "Gemini API\n(opcional)" as IGemini
+
+rectangle "Google Cloud (Sheets: cuenta de servicio · Drive: OAuth del responsable)" as GC {
+  database "Google Sheets\ncatalogo · inventario · ordenes\ndespachos · bitacora" as Sheets
+  database "Google Drive\ncarpeta privada de recetas" as Drive
+  component "Gemini\n(solo elige una etiqueta)" as Gemini
+}
+
+rectangle "Fuera del alcance firmado o planificado" as FUERA #EEEEEE {
+  component "Adaptador WhatsApp\n(issue 24, planificado)" as WA #DDDDDD
+  component "Agente de voz Vapi\n(US-08)" as Vapi #DDDDDD
+  component "PWA del conductor + OSRM\n(US-11, prototipo)" as PWA #DDDDDD
+}
+
+Vecino --> TG : texto o foto
+Personal --> TG : comandos
+TG --> Tunel : HTTPS
+Tunel --> IWebhook
+IWebhook --> Router
+Router --> IExec
+IExec --> SUB
+Router ..> IGemini : mensaje ambiguo
+IGemini --> Gemini
+SUB --> ISheets
+C10 --> ISheets
+ISheets --> Sheets
+C09 --> IDrive
+IDrive --> Drive
+N8N --> ISend : respuestas y avisos
+ISend --> TG
+C21 ..> N8N : errorWorkflow\nde todos los flujos
+WA ..> Router : futuro canal
+Vapi ..> Router
+PWA ..> Sheets : sin backend
+@enduml

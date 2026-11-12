@@ -1,0 +1,464 @@
+Pruebas automáticas · 2026-11-09T22:21:51.905Z · Node 26.3.1
+
+===== scripts/test-alertas.mjs (exit 0, 73 ms)
+PASS 1. alerta completa incluye workflow, ejecución, nodo, error y enlace
+PASS 2. el mensaje es de una sola línea
+PASS 3. mensajes largos se truncan con puntos suspensivos
+PASS 4. payload vacío produce aviso seguro
+PASS 5. error como texto plano se maneja
+PASS 6. sin enlace no agrega la cláusula Revisar
+PASS 7. sin nodo no agrega la cláusula Nodo
+PASS 8. item de alerta con chat_id y severidad CRITICAL
+PASS 9. sin chat de admin no hay item
+PASS 10. truncateText respeta el límite exacto
+PASS: 10 passed, 0 failed
+
+===== scripts/test-aprobacion.mjs (exit 0, 66 ms)
+PASS 1. isAuthorized accepts correct secret, rejects wrong and missing
+PASS 2. isPharmacist matches trimmed ids, rejects outsiders and empty list
+PASS 3. parsePharmacistCommand accepts variants and rejects non-commands
+PASS 4. sanitizeMotivo strips JSON-unsafe characters and limits length
+PASS 5. valid pharmacist update -> { chat_id, command, codigo_far, motivo }
+PASS 6. wrong secret / non-pharmacist / non-command / non-text -> EMPTY
+PASS 7. aprobar + RECETA_RECIBIDA -> APPROVE sin cambio de stock
+PASS 8. rechazar + RECETA_RECIBIDA -> REJECT con motivo y delta
+PASS 9. repetidos -> INVALID sin cambios (aprobar EN_PREPARACION, rechazar RECHAZADO)
+PASS 10. otros estados de origen -> INVALID
+PASS 11. pedido inexistente y comando desconocido -> INVALID
+PASS 12. buildInventoryUpdate libera exacto y nunca queda negativo
+PASS 13. findOrderByCode normaliza # y mayúsculas
+PASS 14. bitacora de aprobación con estado_anterior/estado_nuevo/actor
+PASS 15. bitacora de rechazo con motivo y delta negativo
+PASS 16. evaluateApproval aprobación: update_stock NO y bitacora presente
+PASS 17. evaluateApproval rechazo: update_stock SI con stock liberado
+PASS 18. rechazo sin fila de inventario -> warning, sin update de stock
+PASS 19. evaluateApproval INVALID: sin escrituras, con respuesta
+PASS: 19 passed, 0 failed
+
+===== scripts/test-cron-expiracion.mjs (exit 0, 78 ms)
+PASS  1. expired past order is selected
+PASS  2. boundary (equal to now) is selected
+PASS  3. future expiry is not selected
+PASS  4. non-PENDIENTE_RECETA estados are never selected
+PASS  5. missing/unparseable fecha_expiracion never selected and never throws
+PASS  6a. same medication aggregates to ONE update with summed delta
+PASS  6b. two different medications produce two updates
+PASS  7. clamp releases only what exists
+PASS  8. message has order code and product name, no price
+PASS  9. unknown medicamento_id omits product clause and does not throw
+PASS  10. bitacora row shape (EXPIRACION, negative delta, codigo_far)
+PASS  11. notification carries chat_id sourced from the telefono column
+PASS  12. bitacora carries audit fields (PENDIENTE_RECETA -> CANCELADO_EXPIRADO, sistema:cron)
+PASS 13/13 — US-10 cron expiry tests passed
+
+===== scripts/test-despacho.mjs (exit 0, 65 ms)
+PASS  1a "en ruta FAR-0007" -> ruta
+PASS  1b "/despachar #FAR-0007" -> ruta
+PASS  1c "Entregado FAR-0007" -> entregado
+PASS  1d "entregar far0007" -> entregado
+PASS  1e texto común -> null
+PASS  1f chat del personal autorizado
+PASS  1g chat ajeno se descarta en silencio
+PASS  1h sin lista de personal, vale la de farmacéuticos
+PASS  1i listas vacías -> nadie autorizado
+PASS  1j secreto incorrecto -> []
+PASS  2a EN_PREPARACION + ruta -> EN_RUTA
+PASS  2b ruta no toca el stock
+PASS  2c ruta avisa al vecino por su chat
+PASS  2d bitácora con auditoría (actor personal:<chat>)
+PASS  2e estado_ruta del despacho = EN_RUTA
+PASS  2f EN_RUTA + entregado -> ENTREGADO
+PASS  2g al entregar baja stock_real y stock_reservado en la cantidad
+PASS  2h bitácora de entrega con delta negativo
+PASS  3a entregado repetido no descuenta de nuevo
+PASS  3b entregado sin pasar por ruta -> INVALID
+PASS  3c ruta sobre pedido con receta pendiente -> INVALID
+PASS  3d ruta sobre RECHAZADO o CANCELADO_EXPIRADO -> INVALID
+PASS  3e ruta repetida -> INVALID con mensaje claro
+PASS  3f INVALID no genera bitácora ni aviso al vecino
+PASS  3g pedido inexistente -> INVALID "No encontré"
+PASS  4a stock con piso 0 (nunca negativo)
+PASS  4b sin fila de inventario: no escribe stock y advierte
+PASS  4c código con o sin # y minúsculas
+PASS  5a if_commit: válido -> update_orden; inválido -> reply_staff
+PASS  5b if_entrega: SI -> update_inventario; NO -> append_bitacora
+PASS  5c el disparador es interno (Execute Workflow Trigger)
+PASS  6a un aviso por farmacéutico
+PASS  6b el aviso trae el comando para decidir
+PASS  6c el aviso trae el enlace a la receta
+PASS  6d el aviso NO incluye el RUT (Ley 19.628)
+PASS  6e sin farmacéuticos configurados -> sin avisos
+PASS  6f webViewLink tiene prioridad
+PASS  6g US-09 conecta el aviso después de confirmar
+----------------------------------------
+SUMMARY: 38 passed, 0 failed, 38 total
+
+===== scripts/test-fuzzy-match.mjs (exit 0, 69 ms)
+PASS  1a "pregabalina 75" matches MED-0001
+PASS  1b reply contains formatted price
+PASS  1c reply contains computed stock_neto
+PASS  2 "pregabalain 75mg" matches MED-0001
+PASS  2 "PREGABALINA" matches MED-0001
+PASS  2 "pregabalina 75 mg" matches MED-0001
+PASS  3a "LOSARTÁN" matches MED-0002
+PASS  3b "losartan 50" matches MED-0002 (dose token picks 50 mg over other rows)
+PASS  3c reply carries the selected dosis
+PASS  3d reply has price and computed stock (120 - 12 = 108)
+PASS  4a agotamiento announced
+PASS  4a available bioequivalent listed with its price
+PASS  4b states plainly there is no alternative
+PASS  4b names no product and no price
+PASS  5a low-similarity query stays below MATCH_THRESHOLD
+PASS  5b reply echoes the original query
+PASS  5c reply has no price ($)
+PASS  5d reply has no stock number (digits)
+PASS  5e reply mentions no fixture product
+PASS  6a activo=NO row never matched (even alone)
+PASS  6b reply never names the inactive row
+PASS  6c inactive row absent from every reply
+PASS  7a formatClp(4500) === "$4.500"
+PASS  7b normalize("Losartán 50 mg") === "losartan 50 mg"
+PASS  7c low-similarity query score < MATCH_THRESHOLD
+PASS  8a isAuthorized accepts the correct secret
+PASS  8b isAuthorized rejects a wrong secret
+PASS  8c isAuthorized rejects a missing header
+PASS  8d isAuthorized header lookup is case-insensitive
+PASS  8e valid update -> one item { chat_id, text, received_at }
+PASS  8f update without message -> EMPTY result
+PASS  8g unauthorized request -> EMPTY result (wrong or missing secret)
+----------------------------------------
+SUMMARY: 32 passed, 0 failed, 32 total
+
+===== scripts/test-mapa.mjs (exit 0, 74 ms)
+PASS  1. el mapa incluye los 10 flujos de negocio (router y despacho incluidos)
+PASS  2. no incluye el smoke test de infraestructura
+PASS  3. cada flujo tiene título y resumen
+PASS  4. total de pasos dibujados
+PASS  5. toda conexión apunta a un nodo existente
+PASS  6. cada flujo tiene al menos una conexión
+PASS  7. los flujos clave están presentes
+PASS  8. el HTML incluye una pestaña por flujo y la PWA
+PASS  9. etiquetas en español para la reunión
+PASS  10. cada flujo tiene su SVG
+PASS  11. mapa versionado == generador (regenerar: node scripts/build-workflow-map.mjs)
+----------------------------------------
+SUMMARY: 11 passed, 0 failed
+
+===== scripts/test-panel.mjs (exit 0, 64 ms)
+PASS  1. 13 pedidos procesados
+PASS  2. total $193.750 CLP
+PASS  3. 16 medicamentos en catálogo
+PASS  4. 29 movimientos auditados
+PASS  5. pedidos por estado (6 estados del dataset)
+PASS  6. eventos por tipo
+PASS  7. formato CLP es-CL determinista
+PASS  8. formato de fecha determinista
+PASS  9. catálogo sin disponible negativo
+PASS  10. últimos movimientos con nombre y fecha
+PASS  11. el HTML contiene los KPIs y el título
+PASS  12. tabla del catálogo con 16 filas
+PASS  13. panel versionado == generador (regenerar: node scripts/build-demo-panel.mjs)
+----------------------------------------
+SUMMARY: 13 passed, 0 failed
+
+===== scripts/test-recetas-email.mjs (exit 0, 65 ms)
+PASS 1 extractCodeFromSubject("Re: Receta #FAR-0002 urgente") -> FAR-0002
+PASS 1 extractCodeFromSubject("Consulta FAR-0009") -> FAR-0009
+PASS 1 extractCodeFromSubject("sin codigo") -> ""
+PASS 2 extractReplyAddress("Ana Pérez <ana@correo.cl>") -> ana@correo.cl
+PASS 2 extractReplyAddress("ana@correo.cl") -> ana@correo.cl
+PASS 2 extractReplyAddress("") -> ""
+PASS 3 sanitizeFilename("../../etc/passwd") has no "/" and no ".." (got "passwd")
+PASS 3 sanitizeFilename("mi receta final.pdf") -> mi_receta_final.pdf
+PASS 3 sanitizeFilename("") -> receta-adjunta
+PASS 4 classifyAction -> ASK_CODE when the subject has no code
+PASS 5 classifyAction -> NOT_PENDING for an unknown code
+PASS 5 classifyAction -> NOT_PENDING for an order in another estado
+PASS 6 classifyAction -> ASK_ATTACHMENT when pending and no attachment
+PASS 7 classifyAction -> UPLOAD when pending and attachment exists
+PASS 8 all four messages are non-empty
+PASS 8 no message contains "$"
+PASS 8 all four messages are Spanish (accents present)
+PASS 8 NOT_PENDING contains #FAR-0001
+PASS 8 success contains #FAR-0001
+PASS 8 ASK_CODE names no product/order (no #FAR-XXXX digits)
+PASS 9 buildDriveName("FAR-0001", 1700000000000, "receta.jpg") -> FAR-0001/1700000000000-receta.jpg
+PASS 9 buildDriveName is deterministic across repeated calls
+PASS 10 code node #1 outside n8n -> no throw, empty result
+PASS 10 code node #2 outside n8n -> no throw, empty result
+PASS 10 code node #3 outside n8n -> no throw, empty result
+SUMMARY: 25 passed, 0 failed
+
+===== scripts/test-recetas-telegram.mjs (exit 0, 75 ms)
+PASS  1 extractCode normalizes #FAR-0001 / far-0001 / FAR-0001
+PASS  1b extractCode("sin codigo") -> ""
+PASS  2 three-entry photo -> last file_id
+PASS  2b empty photo array -> null
+PASS  2c missing photo -> null
+PASS  3 empty code -> ASK_CODE
+PASS  4 no matching order -> NOT_FOUND
+PASS  4b order in another estado -> NOT_PENDING
+PASS  4c foreign chat -> NOT_FOUND (titularidad)
+PASS  4d order without telefono -> NOT_FOUND
+PASS  5 pending order + no photo -> ASK_PHOTO
+PASS  6 pending order + photo -> UPLOAD
+PASS  7 all five messages are non-empty
+PASS  7b no message contains "$"
+PASS  7c NOT_PENDING contains #FAR-0001
+PASS  7d success contains #FAR-0001
+PASS  7e success copy in finalize_success matches
+PASS  7f ASK_CODE carries no product name
+PASS  7g messages read as Spanish copy
+PASS  8 buildDriveName exact value
+PASS  8b buildDriveName is deterministic
+PASS  9 correct secret accepted (mixed-case header)
+PASS  9b wrong secret rejected
+PASS  9c missing header rejected
+PASS  9d header name lookup is case-insensitive
+PASS  10 update without message -> [] and no throw
+PASS  10b unauthorized -> [] and no throw
+PASS  10c authorized update extracts chat_id/codigo_far/file_id/source
+SUMMARY: 28 passed, 0 failed
+
+===== scripts/test-reserva.mjs (exit 0, 79 ms)
+PASS  drift "pregabalina 75": same verdict and medicamento_id
+PASS  drift "pregabalain 75mg": same verdict and medicamento_id
+PASS  drift "LOSARTÁN": same verdict and medicamento_id
+PASS  drift "losartan 50": same verdict and medicamento_id
+PASS  drift "vitamina z para dormir": same verdict and medicamento_id
+PASS  drift constants equal (threshold 0.72 / coverage 0.799)
+PASS  1a empty list -> FAR-0001
+PASS  1b ["FAR-0003","FAR-0007"] -> FAR-0008
+PASS  1c malformed entries ignored, no crash
+PASS  1d all-unparseable -> FAR-0001
+PASS  1e padding is 4 digits
+PASS  2a rejects when quantity > available
+PASS  2b message states the exact remaining count
+PASS  2c accepts when quantity == available
+PASS  2d recomputed available ignores stock_neto column (999)
+PASS  2e available <= 0 -> AGOTADO
+PASS  3a requiere_receta SI -> PENDIENTE_RECETA
+PASS  3b fecha_expiracion = fecha_creacion + 12h exactly
+PASS  3c requiere_receta NO -> EN_PREPARACION with no expiry
+PASS  3d default fecha_creacion is now + 12h
+PASS  3e only enum states are produced
+PASS  4a decision COMMIT
+PASS  4b stock_reservado incremented by cantidad (12 + 3 = 15)
+PASS  4c precio_total_clp = unit * cantidad (640 * 3 = 1920)
+PASS  4d bitacora row RESERVA_ALTA with delta_reservado = cantidad
+PASS  4e order row carries phone and RUT (RF-03)
+PASS  4f bitacora/orden share the same codigo_far
+PASS  4g result carries chat_id (Telegram recipient)
+PASS  5a reply contains #FAR-0001
+PASS  5b reply contains a $4.500-style total ($4.600)
+PASS  5c 12-hour recipe instruction present when requiere_receta = SI
+PASS  5d NO recipe: no 12-hour sentence, born in EN_PREPARACION
+PASS  5e SI recipe order born in PENDIENTE_RECETA with expiry
+PASS  6a decision REJECT
+PASS  6b no code and no write payload
+PASS  6c message states the remaining units (108)
+PASS  6d available <= 0 uses US-04 agotamiento + bioequivalentes wording
+PASS  7a no-match decision REJECT
+PASS  7b reply has no price ($)
+PASS  7c reply has no stock number (digits)
+PASS  7d reply names no fixture product
+PASS  7e empty query asks for the medicine with no product name and no $
+PASS  8a quantity = 2
+PASS  8b RUT extracted
+PASS  8c query free of the RUT
+PASS  8d query free of the intent keyword
+PASS  8e parse_reservation copy agrees with evaluate_reservation copy
+PASS  8f intent stripped, quantity defaults to 1
+PASS  8g "u" suffix quantity form
+PASS  9a matching re-read passes
+PASS  9b mismatched re-read flagged as conflict
+PASS  9c missing row counts as conflict
+PASS  9d finalize_reply copy agrees
+PASS  10a isAuthorized accepts the correct secret
+PASS  10b isAuthorized rejects a wrong secret
+PASS  10c isAuthorized rejects a missing header
+PASS  10d isAuthorized header lookup is case-insensitive
+PASS  10e valid update -> chat_id + parsed reservation text
+PASS  10f update without message -> EMPTY result
+PASS  10g unauthorized request -> EMPTY result (wrong or missing secret)
+PASS  11a full format parses query/direccion/sector
+PASS  11b parse copies agree on the full format
+PASS  11c sector matched without accents/case
+PASS  11d San Luis sector matched
+PASS  11e explicit "otro" -> sector Otro
+PASS  11f another comuna -> sector Otro (out of coverage)
+PASS  11g sector before address still captured
+PASS  11h single segment with sector -> query cleaned
+PASS  11i full data -> COMMIT with despacho row PENDIENTE
+PASS  11j bitacora audit fields populated (US-20 columns)
+PASS  11k bitacora detail leaks neither RUT nor address
+PASS  11l missing address -> REJECT with format guidance, no writes
+PASS  11m missing sector -> REJECT listing valid sectors
+PASS  11n out of coverage -> REJECT, no writes
+PASS  11o missing RUT -> REJECT asking for it
+PASS  11p duplicate within window -> DUPLICATE with existing code, no writes
+PASS  11q duplicate outside window -> COMMIT
+PASS  11r different quantity -> COMMIT (not duplicate)
+PASS  11s different chat -> COMMIT (not duplicate)
+----------------------------------------
+SUMMARY: 79 passed, 0 failed, 79 total
+
+===== scripts/test-router.mjs (exit 0, 93 ms)
+PASS  1a sin secreto -> null (descarte silencioso)
+PASS  1b secreto incorrecto -> null
+PASS  1c secreto vacío en el entorno -> null
+PASS  1d update sin message (edited_message) -> null
+PASS  1e encabezado sin distinguir mayúsculas
+PASS  2a foto -> receta
+PASS  2b imagen como documento -> receta
+PASS  2c sticker sin texto -> respuesta sin_texto
+PASS  2d aprobar desde farmacéutico -> aprobacion
+PASS  2e rechazar con motivo -> aprobacion
+PASS  2f aprobar desde chat común NO es aprobacion (va a estado)
+PASS  2g "en ruta" desde personal -> despacho
+PASS  2h "entregado" desde personal -> despacho
+PASS  2i sin lista de personal, el farmacéutico puede despachar
+PASS  2j "en ruta" desde chat común NO es despacho
+PASS  2j2 "revisar vencidos" desde el personal -> expiracion (US-10)
+PASS  2j3 "revisar vencidos" desde un chat común NO ejecuta la expiración
+PASS  2k hola -> bienvenida
+PASS  2l /start -> bienvenida
+PASS  2m "buenas tardes!" -> bienvenida
+PASS  2n reservar ... -> reserva
+PASS  2o "hola, quiero reservar" -> reserva
+PASS  2p "el estado de mi reserva FAR-0002" NO es reserva
+PASS  2q código FAR -> estado
+PASS  2r RUT -> estado
+PASS  2s "estado de mi pedido" sin dato -> pide código o RUT
+PASS  2t nombre de remedio -> consulta
+PASS  2u texto largo sin regla -> ambiguo
+PASS  3a urgencia -> SAMU 131
+PASS  3b sobredosis -> SAMU 131
+PASS  3c autolesión -> *4141
+PASS  3d dosis -> sin consejo clínico
+PASS  3e "para qué sirve" -> sin consejo clínico
+PASS  3f la urgencia gana aunque nombre un remedio
+PASS  3h "me duele el pecho" es urgencia (no consejo)
+PASS  3i horario o dirección -> fuera de dominio (no busca un remedio)
+PASS  3j "a qué hora llega mi pedido" sigue siendo estado
+PASS  3g ningún mensaje clínico menciona dosis ni nombres de remedios
+PASS  4a limpiarConsulta quita saludo y muletillas
+PASS  4b conserva dosis y unidad
+PASS  4c "precio del escitalopram 10"
+PASS  4d normalizarReserva desde la palabra clave
+PASS  4e "2 cajas de" -> x2
+PASS  4f "apartar" se normaliza a reservar
+PASS  4g la dirección y el sector no se tocan
+PASS  4h el body reenviado lleva el texto limpio
+PASS  4i el update original no se modifica
+PASS  5 «hola, hay pregavalina 75?»: sin router no calza, con router sí
+PASS  5 «tienen losartan 50?»: sin router no calza, con router sí
+PASS  5 «precio del escitalopram 10»: sin router no calza, con router sí
+PASS  5 «cuanto cuesta la melatonina»: sin router no calza, con router sí
+PASS  5 «quiero saber si hay pregabalina de 75 mg»: sin router no calza, con router sí
+PASS  5f parse_incoming de US-04 acepta el body del router
+PASS  6a US-05 interpreta la reserva normalizada (cantidad 2, RUT, sector)
+PASS  6b el producto de la reserva calza con Neurogab
+PASS  6c US-06 recibe el código
+PASS  6c2 US-06 en n8n: el titular ve su pedido por RUT (ítems { json })
+PASS  6c3 US-06 en n8n: un pedido de otro chat sigue oculto
+PASS  6d US-20 acepta el comando que el router deriva
+PASS  6e US-22 acepta el comando que el router deriva
+PASS  7a etiqueta válida
+PASS  7b etiqueta con mayúsculas y punto
+PASS  7c texto libre del modelo -> null
+PASS  7d respuesta vacía o error -> null
+PASS  7e sin etiqueta se mantiene el menú
+PASS  7f etiqueta urgencia -> texto fijo con SAMU
+PASS  7g etiqueta consulta -> deriva a US-04
+PASS  7h llm_disponible solo con clave
+PASS  7i la llamada a Gemini no detiene el flujo si falla
+PASS  7j la clave de Gemini viaja en encabezado, no en la URL
+----------------------------------------
+SUMMARY: 70 passed, 0 failed, 70 total
+
+===== scripts/test-trazabilidad.mjs (exit 0, 63 ms)
+PASS 1. extractCode normalizes #FAR-0001 / far-0001 / FAR-0001
+PASS 2. no code in text -> null, no throw
+PASS 3. extractRut normalizes dotted/plain RUT, rejects malformed
+PASS 4. lookup by code succeeds without RUT
+PASS 5. code takes precedence over RUT
+PASS 6. RUT lookup picks most recent, ties broken by code number
+PASS 7. six enum states -> six distinct non-empty messages with #FAR-0001
+PASS 8. unknown code -> neutral not-found, no price/stock/status leaked
+PASS 9. EN_RUTA ETA appended when positive, omitted when null
+PASS 10. estado outside enum -> neutral fallback, no invented detail
+PASS 11. empty input -> empty output (null reply, no message)
+PASS 12. isAuthorized accepts correct secret, rejects wrong and missing
+PASS 13. valid update -> { chat_id, codigo_far }
+PASS 14. update without message -> EMPTY; unauthorized -> EMPTY
+PASS 15. chat de tercero por código -> no encontrado, sin filtrar datos
+PASS 16. chat de tercero por RUT -> no encontrado
+PASS 17. titular por RUT OK; pedido sin teléfono -> no encontrado
+PASS 18. mismo RUT, chats distintos -> cada uno ve el suyo
+PASS: 18 passed, 0 failed
+
+===== scripts/test-workflows-n8n.mjs (exit 0, 77 ms)
+PASS  1a cada flujo del catálogo existe en workflows/
+PASS  1b cada workflow versionado está en el catálogo
+PASS  1c el id del JSON coincide con el catálogo
+PASS  1d ids únicos
+PASS  2a toda versión de nodo existe en n8n 2.44.2
+PASS  2b no hay tipos de nodo fuera de la lista revisada
+PASS  3a ningún Code usa process.env (no existe en el sandbox)
+PASS  3b ningún Code usa require ni fetch
+PASS  4a toda URL con {{ }} es expresión (empieza con =)
+PASS  4b ningún cuerpo JSON lleva "={{" dentro de un literal
+PASS  4c Telegram con base configurable (TELEGRAM_API_BASE)
+PASS  4d descarga de archivos de Telegram con /file/bot<token>/
+PASS  4e todo envío a Telegram reintenta (retryOnFail)
+PASS  5a Sheets con cuenta de servicio
+PASS  5b Sheets con la credencial fija del proyecto
+PASS  5c planilla desde GOOGLE_SHEET_ID (sin IDs en el repo)
+PASS  5e toda lectura de Sheets se ejecuta una sola vez (executeOnce)
+PASS  5f toda lectura entrega salida aunque la hoja esté vacía (alwaysOutputData)
+PASS  5h todo nodo de Sheets reintenta (3 intentos, 5 s)
+PASS  5g toda escritura describe sus columnas (columns.schema)
+PASS  5d Drive con OAuth2, credencial fija y carpeta desde .env
+PASS  6a un único webhook público
+PASS  6b el webhook responde de inmediato (onReceived)
+PASS  6c el router deriva a 7 subflujos
+PASS  6d cada destino del router existe y tiene entrada interna
+PASS  6e los subflujos espera a que terminen (serializa la escritura)
+PASS  6f si un subflujo falla, el vecino recibe un aviso
+PASS  7a todos apuntan a US-21 como flujo de errores
+PASS  7b executionOrder v1 en todos
+PASS  7c los workflows se importan inactivos (se publican por CLI)
+PASS  8a toda conexión apunta a nodos existentes
+PASS  8b nombres de nodo únicos por flujo
+PASS  9a sin tokens de bot de Telegram
+PASS  9b sin claves privadas
+PASS  9c sin IDs de planilla reales (44 caracteres)
+PASS  10a imagen de n8n fijada (sin latest)
+PASS  10b cloudflared fijado (sin latest)
+PASS  10c $env habilitado en los nodos
+PASS  10d ejecuciones serializadas (RNF-04)
+----------------------------------------
+SUMMARY: 39 passed, 0 failed, 39 total
+
+===== pwa/test/pwa.test.mjs (exit 0, 68 ms)
+PASS  computeEtaMinutes(1140) === 19
+PASS  computeEtaMinutes(0) === null
+PASS  computeEtaMinutes(undefined) === null
+PASS  computeEtaMinutes("abc") === null
+PASS  formatEta(null) === "ETA no disponible"
+PASS  formatEta(19) === "≈ 19 min"
+PASS  nextEstado("PENDIENTE","ruta") === "EN_RUTA"
+PASS  nextEstado("PENDIENTE","entregado") === "ENTREGADO"
+PASS  nextEstado("ENTREGADO","ruta") === null
+PASS  nextEstado("EN_RUTA","ruta") === null
+PASS  nextEstado("PENDIENTE","desconocida") === null
+PASS  buildOsrmUrl contains /route/v1/driving/
+PASS  buildOsrmUrl delivery coords first
+PASS  buildOsrmUrl origin second after ';'
+PASS  buildOsrmUrl uses https base
+PASS  pickDeliveries(true,[1],[2]) === [1]
+PASS  pickDeliveries(false,[1],[2]) === [2]
+PASS  pure section exports only named functions (computeEtaMinutes, formatEta, nextEstado, buildOsrmUrl, pickDeliveries)
+----
+Summary: 18/18 passed, 0 failed.

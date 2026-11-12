@@ -8,6 +8,8 @@ python3 scripts/generate_seed.py
 
 El script valida el stock reservado, IDs únicos, FKs, estados y DV de RUT antes de escribir.
 
+> **Sobre la identidad de estos datos.** Los RUT se generan al azar con dígito verificador válido para poder probar la validación. No salen de ninguna fuente real, pero por azar podrían coincidir con el RUT de una persona. Los sectores y las calles son reales de Peñalolén solo para dar verosimilitud; los números de casa y los teléfonos son inventados. Úselos únicamente en pruebas y no los muestre en videos ni capturas.
+
 ## Carga en Google Sheets
 
 1. Crear una planilla con 4 pestañas: `Medicamentos`, `Pedidos`, `Items_Pedido`, `Log_Reservas`.

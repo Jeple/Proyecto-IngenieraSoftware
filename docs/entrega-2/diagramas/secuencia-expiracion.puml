@@ -1,0 +1,29 @@
+@startuml secuencia-expiracion
+!include estilo.iuml
+title Secuencia · Liberación automática a las 12 horas (US-10, cron)
+
+participant "Cron horario\n(Schedule Trigger)" as CRON
+participant "Expiración\nUS-10" as EX
+database "Google Sheets" as S
+participant "Telegram" as TG
+actor Vecino
+
+CRON -> EX : cada hora
+activate EX
+EX -> S : leer ordenes, inventario y catalogo
+S --> EX : filas
+EX -> EX : find_expired(): estado = PENDIENTE_RECETA\ny fecha_expiracion < ahora (fechas reales)
+alt hay vencidos
+  loop por cada pedido vencido
+    EX -> S : ordenes.estado = CANCELADO_EXPIRADO
+  end
+  EX -> S : inventario: stock_reservado − cantidad\n(agregado por medicamento, nunca negativo)
+  EX -> S : bitacora EXPIRACION (delta negativo,\nactor sistema:cron)
+  EX -> TG : aviso a cada vecino (chat de ordenes.telefono)
+  TG -> Vecino : «Tu pedido #FAR-… fue cancelado por falta de receta\ndespués de 12 horas. Liberamos … unidades …»
+else ninguno
+  EX -> EX : termina sin escribir
+end
+deactivate EX
+note over CRON, S : El cron también es una ejecución de producción:\nno se intercala con reservas ni aprobaciones (RNF-04).
+@enduml

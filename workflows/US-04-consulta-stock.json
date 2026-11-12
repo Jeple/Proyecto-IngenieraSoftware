@@ -1,29 +1,25 @@
 {
+  "id": "farmaciaUS04cons",
   "name": "US-04 Consulta de Stock (Fuzzy Search)",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "telegram-consulta",
-        "responseMode": "onReceived",
-        "webhookId": "us04-webhook-messages",
-        "options": {}
+        "inputSource": "passthrough"
       },
       "id": "nwm01",
-      "name": "webhook_telegram",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "name": "entrada_router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [
         0,
         300
       ],
-      "webhookId": "us04-webhook-messages",
-      "notes": "responseMode onReceived returns an immediate 200 to Telegram before any processing, protecting RNF-01 (reply latency < 2.5 s): parsing, the two Sheets reads and fuzzy matching all run after the ack."
+      "notes": "Entrada interna: el router de Telegram (US-17, webhook telegram-bot) invoca este flujo con el mismo update y encabezados. Antes: webhook POST telegram-consulta."
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * Extract the incoming Telegram update from the webhook payload.\n *\n * Authorization: Telegram signs the webhook with the header\n * X-Telegram-Bot-Api-Secret-Token (looked up case-insensitively). The n8n\n * assembly passes process.env.TELEGRAM_WEBHOOK_SECRET. A mismatch emits an\n * EMPTY array — a silent drop, because responseMode onReceived already\n * returned the immediate 200 (RNF-01) before this node runs.\n * Outputs ONE item { chat_id, text, received_at } or an EMPTY array when the\n * update carries no text message. Never throws.\n */\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item { chat_id, text, received_at }\n * or an EMPTY array (unauthorized, no message, non-text message).\n * Never throws: malformed payloads are dropped silently.\n */\nfunction parseTelegramUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return []; // non-text message (photo, sticker, ...) -> drop\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  return [\n    {\n      json: {\n        chat_id: chat,\n        text: text,\n        received_at:\n          message.date && Number.isFinite(Number(message.date))\n            ? new Date(Number(message.date) * 1000).toISOString()\n            : new Date().toISOString()\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update =\n        json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        process.env.TELEGRAM_WEBHOOK_SECRET\n      );\n      if (out.length) return out; // ONE item per webhook payload\n    }\n  } catch (err) {\n    return []; // malformed payload -> drop, never throw\n  }\n  return [];\n}\n"
+        "jsCode": "/**\n * Extract the incoming Telegram update from the webhook payload.\n *\n * Authorization: Telegram signs the webhook with the header\n * X-Telegram-Bot-Api-Secret-Token (looked up case-insensitively). The n8n\n * assembly passes $env.TELEGRAM_WEBHOOK_SECRET. A mismatch emits an\n * EMPTY array — a silent drop, because responseMode onReceived already\n * returned the immediate 200 (RNF-01) before this node runs.\n * Outputs ONE item { chat_id, text, received_at } or an EMPTY array when the\n * update carries no text message. Never throws.\n */\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item { chat_id, text, received_at }\n * or an EMPTY array (unauthorized, no message, non-text message).\n * Never throws: malformed payloads are dropped silently.\n */\nfunction parseTelegramUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return []; // non-text message (photo, sticker, ...) -> drop\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  return [\n    {\n      json: {\n        chat_id: chat,\n        text: text,\n        received_at:\n          message.date && Number.isFinite(Number(message.date))\n            ? new Date(Number(message.date) * 1000).toISOString()\n            : new Date().toISOString()\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update =\n        json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        $env.TELEGRAM_WEBHOOK_SECRET\n      );\n      if (out.length) return out; // ONE item per webhook payload\n    }\n  } catch (err) {\n    return []; // malformed payload -> drop, never throw\n  }\n  return [];\n}\n"
       },
       "id": "npi01",
       "name": "parse_incoming",
@@ -36,12 +32,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -64,16 +60,27 @@
       "position": [
         480,
         300
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -96,7 +103,18 @@
       "position": [
         720,
         300
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
@@ -115,10 +133,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.message }) }}",
         "options": {}
       },
       "id": "nsw01",
@@ -128,7 +146,10 @@
       "position": [
         1200,
         300
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
@@ -176,7 +197,7 @@
         ]
       ]
     },
-    "webhook_telegram": {
+    "entrada_router": {
       "main": [
         [
           {
@@ -190,12 +211,13 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "farmaciaUS21aler"
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "versionId": "us04-fuzzy-stock-9f4c2a71-6d3e-4b8a-a1c5-72e0d5f8b3a6",
+  "versionId": "da25994e-60e4-426f-98fb-cbde94d97ad4",
   "tags": []
 }
