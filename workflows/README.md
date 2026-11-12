@@ -14,6 +14,10 @@ US-XX-<slug>.json
 
 El prefijo corresponde a la historia que **origina** el flujo. Si una historia posterior amplía exactamente el mismo flujo, modifica el mismo archivo en lugar de crear otro. Si el flujo es independiente — con su propio disparador — crea el suyo propio: así nacieron `US-05-reserva.json`, `US-06-trazabilidad.json` y `US-10-cron-expiracion.json`. El *router de intenciones* (US-17) es el único webhook del bot: recibe cada mensaje y lo deriva al subflujo que corresponde con *Execute Workflow*; los subflujos no tienen webhook propio.
 
+## Flujos que `levantar` no importa
+
+`scripts/local/lib/flujos.mjs` define los 9 flujos del alcance firmado. Los otros dos JSON de esta carpeta quedan fuera a propósito: `US-09-recetas-email.json` (canal IMAP, postergado; no tiene `id` fijo ni flujo de errores) y `smoke-test.json` (webhook `/webhook/health` de la prueba de humo del Sprint 0). No los importe junto con los demás.
+
 ## Exportar un workflow desde n8n
 
 1. Abrir el workflow en el editor de n8n.
@@ -127,7 +131,7 @@ El workflow [`.github/workflows/validate-workflows.yml`](../.github/workflows/va
 - **Falla** si `node pwa/test/pwa.test.mjs` falla (funciones puras de la PWA de US-11).
 - **Advierte** (sin fallar) si la carpeta aún no contiene archivos JSON, como ocurre en el Sprint 0.
 
-La validación no requiere dependencias: usa el Node.js ya instalado en `ubuntu-latest`.
+La validación no requiere dependencias: usa el Node.js ya instalado en `ubuntu-24.04`.
 
 ## Checklist antes de commitear un workflow
 

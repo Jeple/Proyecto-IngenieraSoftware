@@ -18,7 +18,7 @@ on:
 
 jobs:
   validate-json:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
       - name: Check secrets
         run: bash scripts/check_secrets.sh
 
-      # Dependency-free: uses only Node.js (preinstalled on ubuntu-latest).
+      # Dependency-free: uses only Node.js (preinstalled on ubuntu-24.04).
       - name: Validate workflow JSON files
         run: |
           node -e '
@@ -137,9 +137,10 @@ jobs:
   # publica los 9 flujos, envía updates al webhook único y verifica respuestas,
   # derivación a subflujos y alertas US-21. No usa credenciales reales.
   integracion-n8n:
-    # Runner fijado (control de configuración). Desde el 19-oct-2026 «ubuntu-latest»
-    # apunta a Ubuntu 26; las dos primeras corridas de este job (10-nov) se cortaron
-    # por tiempo al levantar n8n allí, sin llegar a «n8n listo». 24.04 es la imagen LTS estable.
+    # Runner fijado (control de configuración). Las dos primeras corridas de este job
+    # (10-nov, con «ubuntu-latest») se cortaron por tiempo tras «Levantando n8n». La causa
+    # no se confirmó: el arreglo cambió a la vez el runner y los límites de cada paso.
+    # Con ubuntu-24.04 y esos límites el job termina en unos 2,5 min.
     runs-on: ubuntu-24.04
     needs: validate-json
     timeout-minutes: 25

@@ -29,31 +29,36 @@ Nota de alcance: el prototipo se mantiene desacoplado de SAP (exclusión explíc
 
 ```text
 .
-├── README.md                       # Visión general, quickstart y roadmap
-├── .gitignore                      # Exclusiones: secretos, datos locales, build
-├── .env.example                    # Plantilla de variables de entorno (copiar a .env)
-├── docker-compose.yml              # Servicios n8n + cloudflared (RNF-03)
-├── secrets/                        # JSON de service-account local (no se versiona)
-│   └── .gitkeep
-├── docs/
-│   ├── arquitectura.md             # Diagrama, capas, decisiones y guardrails
-│   └── google-sheets-schema.md     # Esquema de las 5 hojas y reglas de negocio (US-01)
+├── README.md                       # Visión general y cómo empezar
+├── CHANGELOG.md                    # Cambios por sprint
+├── .env.example                    # Plantilla de variables (copiar a .env; lo hace levantar)
+├── docker-compose.yml              # n8n 2.44.2 + túnel de Cloudflare (versiones fijadas)
+├── secrets/                        # JSON de Google en local (no se versiona)
+├── workflows/                      # Exportes JSON de n8n: 9 flujos del alcance + 2 diferidos
 ├── scripts/
-│   └── setup-sheets.gs             # Google Apps Script que crea el libro de datos
-├── workflows/                      # Exportes JSON de n8n (convención US-XX-<slug>.json)
-│   └── README.md
-├── .github/
-│   └── workflows/
-│       └── validate-workflows.yml  # CI: valida el JSON de workflows/ (US-02)
-└── pwa/
-    └── README.md                   # Placeholder del módulo conductor (US-11)
+│   ├── local/                      # levantar, doctor, cargar-catalogo, E2E, mediciones
+│   ├── test-*.mjs                  # 14 suites (413 pruebas)
+│   ├── check_secrets.sh            # Escaneo de secretos y RUT (también en la CI)
+│   └── setup-sheets.gs, generate_seed.py, build-*.mjs
+├── data/seed/                      # Datos sintéticos (CSV)
+├── docs/
+│   ├── guia-instalacion-local.md   # Paso a paso para levantar el bot
+│   ├── plan-pruebas-aceptacion.md  # 21 casos y su resultado
+│   ├── arquitectura.md, google-sheets-schema.md, runbook-operaciones.md ...
+│   ├── entrega-2/                  # UML, decisiones de diseño, ISO 25010, pruebas, riesgos
+│   └── evidencia/                  # Reportes de E2E, integración, rendimiento y pruebas
+├── infra/n8n/                      # Variantes de despliegue (túnel con nombre)
+├── presentacion/                   # Panel y mapa de flujos para la demo
+├── pwa/                            # Prototipo de app del conductor (fuera del alcance firmado)
+└── .github/workflows/              # CI: validate-json e integracion-n8n
 ```
 
 ## Requisitos previos
 
-- **Docker Desktop** (o Docker Engine + Docker Compose).
-- **Cuenta de Google**: Google Sheets, Google Drive, Google Apps Script y Google AI Studio (clave de Gemini Flash).
-- **Cuenta de Cloudflare** con Zero Trust para crear el túnel.
+- **Docker Desktop** (o Docker Engine + Docker Compose v2) y **Node.js 18 o superior**.
+- **Cuenta de Telegram** para crear el bot con @BotFather.
+- **Cuenta de Google** (Sheets y Drive, más una cuenta de servicio y un cliente OAuth). La clave de Gemini es **opcional**: sin ella el router usa solo reglas.
+- **Túnel de Cloudflare:** el túnel rápido no necesita cuenta. Una cuenta con Zero Trust solo hace falta para el túnel con nombre (opcional, ver `docs/n8n-despliegue.md`).
 - **Cuenta de GitHub** con acceso al repositorio y al tablero del proyecto.
 
 ## Quickstart

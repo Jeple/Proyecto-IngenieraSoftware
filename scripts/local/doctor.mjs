@@ -38,6 +38,15 @@ async function main() {
     dc.code === 0 ? ok('Docker Compose ' + dc.out.trim()) : mal('Docker Compose v2 no está disponible');
   }
 
+  // Host ACTUAL del túnel rápido: el contenedor conserva los logs de arranques anteriores,
+  // así que vale la última URL, no la primera.
+  let hostTunel = null;
+  if (dockerOk) {
+    const lg = sh('docker', ['logs', 'farmacia-tunel-rapido']);
+    const todas = lg.code === 0 ? lg.out.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/g) : null;
+    if (todas) hostTunel = new URL(todas[todas.length - 1]).host;
+  }
+
   titulo('2. Archivo .env');
   const rutaEnv = join(REPO, '.env');
   if (!existsSync(rutaEnv)) {
@@ -110,7 +119,13 @@ async function main() {
         const url = wh.result.url || '';
         if (!url) mal('el bot no tiene webhook', 'ejecute scripts/local/levantar');
         else if (!url.endsWith('/webhook/' + WEBHOOK_PATH)) mal('el webhook no apunta al router (' + new URL(url).pathname + ')', 'ejecute scripts/local/levantar');
-        else ok('webhook registrado en ' + new URL(url).host);
+        else {
+          const host = new URL(url).host;
+          if (host.endsWith('.trycloudflare.com') && hostTunel && host !== hostTunel) {
+            mal('el webhook apunta a un túnel que ya no existe (' + host + '); el actual es ' + hostTunel,
+              'ejecute scripts/local/levantar para volver a registrar el webhook');
+          } else ok('webhook registrado en ' + host);
+        }
         if (wh.result.last_error_message) ojo('último error de entrega de Telegram: ' + wh.result.last_error_message, 'si el túnel cambió, vuelva a ejecutar levantar');
         if (wh.result.pending_update_count > 0) ojo(wh.result.pending_update_count + ' mensajes pendientes de entregar');
       }
@@ -153,9 +168,7 @@ async function main() {
           : mal('la credencial «Google Drive (OAuth)» no está conectada', 'http://localhost:5678 → Overview → Credentials → «Google Drive (OAuth)» → Sign in with Google');
       }
     }
-    const tunel = sh('docker', ['logs', 'farmacia-tunel-rapido']);
-    const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(tunel.out);
-    if (tunel.code === 0 && m) ok('túnel rápido activo: ' + m[0]);
+    if (hostTunel) ok('túnel rápido activo: https://' + hostTunel);
     else ojo('no hay túnel rápido activo', 'sin túnel, Telegram no puede entregar mensajes; ejecute levantar');
   }
 

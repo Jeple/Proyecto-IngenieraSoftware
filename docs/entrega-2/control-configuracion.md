@@ -78,7 +78,7 @@ Cada job puede bloquear el PR (*quality gate*). Con la protección de rama que s
 | cloudflared | 2026.10.1 | `docker-compose.yml` (`CLOUDFLARED_VERSION`), `infra/n8n/` |
 | PlantUML | 1.2026.9 | `docs/entrega-2/diagramas/exportar.mjs` |
 | Node (CI) | 20 | `actions/setup-node` |
-| Runner del job `integracion-n8n` | `ubuntu-24.04` | `.github/workflows/validate-workflows.yml`. Se fijó el 10-nov: en `ubuntu-latest` (Ubuntu 26 desde el 19-oct) el job se cortó por tiempo al levantar n8n |
+| Runner de los jobs de CI | `ubuntu-24.04` | `.github/workflows/validate-workflows.yml`. Se fijó el 10-nov: con `ubuntu-latest` el job `integracion-n8n` se cortó dos veces por tiempo tras «Levantando n8n». La causa no se confirmó (el arreglo cambió también los límites de cada paso) |
 | Node (local) | ≥ 18 | Verificado por `levantar.mjs` y `doctor.mjs` |
 | Fin de línea | LF | `.gitattributes` (`* text=auto eol=lf`) |
 

@@ -35,7 +35,7 @@ git clone https://github.com/Jeple/Proyecto-IngenieraSoftware.git
 cd Proyecto-IngenieraSoftware
 ```
 
-Mientras la Entrega 2 no se fusione en `main`, cambie a la rama de trabajo que indique el equipo (por ejemplo `git switch feature/sprint-2-entrega`).
+Si la Entrega 2 todavía no está fusionada en `main`, cambie a su rama con `git switch feature/sprint-2-entrega`. Una vez fusionada, `main` ya trae todo y este paso no hace falta.
 
 ## 3. Crear el bot de Telegram (3 minutos)
 
