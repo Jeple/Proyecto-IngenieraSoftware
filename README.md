@@ -6,6 +6,8 @@ Asistente de chat para la Farmacia Comunitaria de la Municipalidad de Peñalolé
 
 **Empezar aquí:** [guía de instalación local](docs/guia-instalacion-local.md) · [documentación de la Entrega 2](docs/entrega-2/) · [checklist de la Entrega 2](docs/entrega-2/checklist-entrega-2.md) · [plan de aceptación](docs/plan-pruebas-aceptacion.md) · [CHANGELOG](CHANGELOG.md)
 
+**Cierre de la Entrega 2:** [informe del Sprint 2](docs/informe-sprint-2.md) · [guion del video](docs/guion-video-sprint-2.md) · [runbook de cierre](docs/entrega-2/runbook-cierre-entrega-2.md) · [evidencia del tablero](docs/entrega-2/evidencia-tablero.md) · [kit de capturas de aceptación](docs/entrega-2/kit-capturas-aceptacion.md)
+
 ## Problema
 
 La Farmacia Comunitaria de Peñalolén atiende a **43.089 usuarios** inscritos y emite **39.212 boletas al año**, pero el **81% de las transacciones sigue siendo presencial** en ventanilla. Para conocer existencias y precios, el vecino debe descargar una planilla estática sin buscador por principio activo ni dosis; el personal clínico responde manualmente consultas repetitivas por mensajería instantánea; y las reservas telefónicas o verbales no se descuentan en tiempo real del inventario, lo que provoca sobreventas y demoras de 2 a 7 días hábiles en el despacho vehicular. El objetivo es automatizar la consulta de stock, la cotización y la trazabilidad de pedidos con reserva transaccional en Google Sheets, sin tocar el ERP SAP de Cormup y con un costo de infraestructura de $0 USD (RNF-05).

@@ -3,8 +3,9 @@
 | Versión | Fecha | Autor | Cambios |
 |---|---|---|---|
 | 1.0 | 15-nov-2026 | Equipo del proyecto (Grupo 10) | Verificación contra la rúbrica de la Entrega 2 y estado del repositorio |
+| 1.1 | 15-nov-2026 | Equipo del proyecto (Grupo 10) | Informe, guion del video, evidencia del tablero, kit de capturas y runbook de cierre; issues y ramas actualizados |
 
-**Datos de referencia:** repositorio <https://github.com/Jeple/Proyecto-IngenieraSoftware> · rama `main` en `d42b6b2` · tags `v0.1-sprint1` y `v0.2-sprint2` · PR [#25](https://github.com/Jeple/Proyecto-IngenieraSoftware/pull/25) y [#26](https://github.com/Jeple/Proyecto-IngenieraSoftware/pull/26) fusionados · tablero [GitHub Project #6](https://github.com/users/Jeple/projects/6/views/1) · entrega en WebC: **domingo 15-nov, 23:30**.
+**Datos de referencia:** repositorio <https://github.com/Jeple/Proyecto-IngenieraSoftware> · rama `main` en `f01e60b` · tags `v0.1-sprint1` y `v0.2-sprint2` · PR [#25](https://github.com/Jeple/Proyecto-IngenieraSoftware/pull/25), [#26](https://github.com/Jeple/Proyecto-IngenieraSoftware/pull/26) y [#27](https://github.com/Jeple/Proyecto-IngenieraSoftware/pull/27) fusionados · tablero [GitHub Project #6](https://github.com/users/Jeple/projects/6/views/1) · entrega en WebC: **domingo 15-nov, 23:30**.
 
 Leyenda: ✅ cubierto en el repositorio · ⚠️ parcial · ❌ falta (acción del equipo, fuera del repositorio).
 
@@ -14,7 +15,7 @@ Leyenda: ✅ cubierto en el repositorio · ⚠️ parcial · ❌ falta (acción 
 |---|---|---|---|---|
 | 1 | Documento de alcance firmado por el stakeholder | No se versiona (contiene firma y datos de la contraparte); se sube a WebC | ❌ | Juan Pablo: subir el PDF firmado junto al informe |
 | 2 | Backlog actualizado y priorizado | [`docs/entrega-2/backlog-actualizado.md`](backlog-actualizado.md) | ✅ | — |
-| 3 | Evidencia del avance del tablero | Issues de GitHub + plan en [`paquete-final.md`](paquete-final.md) §4 | ⚠️ | Javier: capturas **antes/después**, mover estados y crear US-17/US-22 (ver §4) |
+| 3 | Evidencia del avance del tablero | [`evidencia-tablero.md`](evidencia-tablero.md) (snapshot de issues, mapeo y pasos) + [`kit-capturas-aceptacion.md`](kit-capturas-aceptacion.md) | ⚠️ | Javier: capturas **antes/después** y mover tarjetas en la UI; los issues US-17 (#28) y US-22 (#29) ya se crearon y #9/#10/#13 se cerraron |
 | 4 | Diagrama de secuencia de las principales funcionalidades | [`secuencia-consulta`](diagramas/secuencia-consulta.puml), [`reserva`](diagramas/secuencia-reserva.puml), [`trazabilidad`](diagramas/secuencia-trazabilidad.puml), [`receta-aprobación`](diagramas/secuencia-receta-aprobacion.puml), [`expiracion`](diagramas/secuencia-expiracion.puml), [`despacho`](diagramas/secuencia-despacho.puml) (+ PNG/SVG en [`exportados/`](diagramas/exportados/)) | ✅ | — |
 | 5 | Justificación de las principales decisiones de diseño | [`docs/entrega-2/decisiones-diseno.md`](decisiones-diseno.md) (ADR y cohesión/acoplamiento) | ✅ | — |
 | 6 | Enlace al repositorio y evidencia de control de configuración | [`docs/entrega-2/control-configuracion.md`](control-configuracion.md) + tags + PRs + CI | ✅ | — |
@@ -25,11 +26,11 @@ Leyenda: ✅ cubierto en el repositorio · ⚠️ parcial · ❌ falta (acción 
 | 11 | Plan de pruebas de aceptación y reporte de la 1.ª evidencia de pruebas unitarias | [`docs/plan-pruebas-aceptacion.md`](../plan-pruebas-aceptacion.md) + [`docs/evidencia/pruebas-unitarias/`](../evidencia/pruebas-unitarias/) | ✅ | Añadir capturas y *execution id* a la tabla de reporte (§3 del plan) |
 | 12 | Matriz de riesgos de seguridad | [`docs/entrega-2/matriz-riesgos-seguridad.md`](matriz-riesgos-seguridad.md) + [`matriz-riesgos-seguridad.xlsx`](matriz-riesgos-seguridad.xlsx) | ✅ | Corregir RS-15 (el túnel rápido expone el editor; ver §4) |
 | 13 | Backlog actualizado | [`docs/entrega-2/backlog-actualizado.md`](backlog-actualizado.md) | ✅ | — |
-| 14 | Video del incremento (máx. 5 min) | Se sube a WebC (no se versiona el archivo); guion del Sprint 1 en [`docs/guion-video-sprint-1.md`](../guion-video-sprint-1.md) como referencia | ❌ | Grabar con el contenido mínimo de §5 |
+| 14 | Video del incremento (máx. 5 min) | Guion completo en [`docs/guion-video-sprint-2.md`](../guion-video-sprint-2.md) (incluye edición con IA); el video se sube a WebC | ❌ | Grabar con el guion; el contenido mínimo está en §5 de este checklist |
 
-**Evidencia de cada Sprint** (rúbrica general): **Informe** ❌ (no hay informe del Sprint 2 en el repo; existe [`docs/informe-sprint-1.md`](../informe-sprint-1.md) como formato) · **Tablero actualizado** ⚠️ · **Repositorio** ✅ · **Diagramas** ✅ · **Video** ❌.
+**Evidencia de cada Sprint** (rúbrica general): **Informe** ✅ [`docs/informe-sprint-2.md`](../informe-sprint-2.md) · **Tablero actualizado** ⚠️ (evidencia documentada y issues al día; faltan capturas y mover tarjetas en la UI) · **Repositorio** ✅ · **Diagramas** ✅ · **Video** ❌ (guion listo).
 
-**Resultado:** 11 de los 14 entregables técnicos están cubiertos en el repositorio. Quedan 3 acciones humanas: alcance firmado, capturas/estados del tablero y video; además del informe del Sprint 2.
+**Resultado:** 11 de los 14 entregables técnicos están cubiertos en el repositorio; el tablero queda parcial (evidencia e issues listos, capturas y tarjetas pendientes) y el video tiene guion pero falta grabarlo. Quedan 2 acciones humanas fuera del repo: **alcance firmado** y **video**; más las capturas y el movimiento de tarjetas del tablero.
 
 ## 2. Evidencia disponible y cómo verificarla
 
@@ -55,9 +56,9 @@ node scripts/local/prueba-integracion.mjs --n 20   # 14/14 con n8n real (Docker)
 
 ## 3. Estado del repositorio y orden de ramas (15-nov-2026)
 
-- `main` quedó en **`d42b6b2`** (merge del PR #26). Contiene **todo** el Sprint 1 y el Sprint 2; se verificó que `feature/sprint-2-entrega` no tenía ningún commit fuera de `main` y que el diff entre ambas era **vacío**.
+- `main` quedó en **`f01e60b`** tras fusionar el PR #26 (Sprint 2 completo) y el PR #27 (checklist). Contiene **todo** el Sprint 1 y el Sprint 2; se verificó que `feature/sprint-2-entrega` no tenía ningún commit fuera de `main` y que el diff entre ambas era **vacío**.
 - **Tags de línea base:** `v0.1-sprint1` → `d216bfa` y `v0.2-sprint2` → `d42b6b2`, publicados en el remoto.
-- **Ramas ordenadas:** se eliminaron del remoto las tres ramas ya fusionadas (`feature/US-01`, `feature/sprint-1-2`, `feature/sprint-2-entrega`). El historial se conserva en los PR #25/#26, en los tags y en `main`. Solo queda `main`.
+- **Ramas ordenadas:** se eliminaron del remoto las tres ramas ya fusionadas (`feature/US-01`, `feature/sprint-1-2`, `feature/sprint-2-entrega`). El historial se conserva en los PR #25/#26/#27, en los tags y en `main`. Solo queda `main`.
 - **Corrección de seguridad incluida:** el PR #26 incorpora `2c7aec8` (B-01: inyección de fórmulas en `despachos.direccion` neutralizada; `append_despacho` escribe con `cellFormat: RAW`).
 - **No se creó `develop`:** la decisión de abandonarla está documentada en [`control-configuracion.md`](control-configuracion.md).
 - **Si tu clon local muestra `main` como Sprint 1**, está desactualizado; actualízalo:
@@ -65,7 +66,7 @@ node scripts/local/prueba-integracion.mjs --n 20   # 14/14 con n8n real (Docker)
 ```bash
 git fetch --prune
 git switch main
-git pull --ff-only          # debe quedar en d42b6b2
+git pull --ff-only          # debe quedar en f01e60b o posterior
 git tag                     # deben aparecer v0.1-sprint1 y v0.2-sprint2
 ```
 
@@ -76,9 +77,9 @@ git tag                     # deben aparecer v0.1-sprint1 y v0.2-sprint2
 | Prioridad | Qué | Responsable sugerido | Cómo |
 |---|---|---|---|
 | 1 | Documento de alcance firmado (PDF) | Juan Pablo | Subir a WebC junto con el informe |
-| 1 | Informe del Sprint 2 (PDF) | Juan Pablo / Álvaro | Completar marcadores del informe, exportar a PDF y subir a WebC |
+| 1 | Informe del Sprint 2 (PDF) | Juan Pablo / Álvaro | Usar [`docs/informe-sprint-2.md`](../informe-sprint-2.md) como base, completar datos del equipo, exportar a PDF y subir a WebC |
 | 1 | Video ≤ 5 min del incremento | Todos (graba Julián) | Guion de §5; subir como no listado y pegar el enlace en WebC |
-| 2 | Capturas de aceptación | Antonio + Javier | `cap-02`…`cap-19`, `cap-n8n`, `cap-bitacora`, `cap-ci` (tabla del plan de aceptación) y anotar los *execution id* |
+| 2 | Capturas de aceptación | Antonio + Javier | `cap-02`…`cap-19`, `cap-n8n`, `cap-bitacora`, `cap-ci`; guía paso a paso en [`kit-capturas-aceptacion.md`](kit-capturas-aceptacion.md) |
 | 2 | CA-08 desde un segundo teléfono real | Antonio | Mismo mensaje que en el chat simulado; guardar captura |
 | 2 | Tablero #6: capturas **antes/después** y estados | Javier | Crear los issues US-17/US-22, cerrar #9/#10/#13, mover a *Done* lo fusionado y verificado; comandos en [`paquete-final.md`](paquete-final.md) §4 |
 | 3 | Corregir RS-15 de la matriz de riesgos | Responsable de calidad | Aclarar que el túnel rápido expone el editor de n8n hasta crear el usuario local |
@@ -111,7 +112,7 @@ Duración máxima **5 minutos**. No se evalúa la edición, sí la claridad de l
 
 ```bash
 # Repositorio
-git log --oneline -3                 # d42b6b2 (merge PR #26) y 2c7aec8 (B-01)
+git log --oneline -3                 # cierre documental, d42b6b2 (PR #26) y 2c7aec8 (B-01)
 git tag -l                           # v0.1-sprint1, v0.2-sprint2
 git branch -r                        # solo origin/main
 
