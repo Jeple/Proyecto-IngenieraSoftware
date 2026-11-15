@@ -11,6 +11,7 @@ import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const ORDEN = [
+  'US-17-router-telegram.json',
   'US-04-consulta-stock.json',
   'US-05-reserva.json',
   'US-06-trazabilidad.json',
@@ -18,10 +19,15 @@ const ORDEN = [
   'US-09-recetas-email.json',
   'US-10-cron-expiracion.json',
   'US-20-aprobacion-recetas.json',
+  'US-22-despacho-personal.json',
   'US-21-alertas-errores.json'
 ];
 
 const DESCRIPCIONES = {
+  'US-17-router-telegram.json': {
+    titulo: 'Router de Telegram (entrada única)',
+    resumen: 'Recibe todos los mensajes del bot, valida el secreto, responde las urgencias y deriva cada mensaje al flujo que corresponde.'
+  },
   'US-04-consulta-stock.json': {
     titulo: 'Consulta de stock y precios',
     resumen: 'El vecino pregunta por un medicamento (aunque escriba con errores) y recibe disponibilidad y precio reales, sin datos inventados.'
@@ -50,6 +56,10 @@ const DESCRIPCIONES = {
     titulo: 'Aprobación farmacéutica',
     resumen: 'El químico farmacéutico aprueba o rechaza por comando; nada pasa a preparación sin su aprobación y el rechazo libera el stock.'
   },
+  'US-22-despacho-personal.json': {
+    titulo: 'Despacho marcado por el personal',
+    resumen: 'El personal marca «en ruta» y «entregado» por comando; el vecino recibe el aviso y al entregar se descuenta el stock una sola vez.'
+  },
   'US-21-alertas-errores.json': {
     titulo: 'Alertas de error',
     resumen: 'Si un flujo falla, avisa al equipo con el workflow, el nodo y el enlace a la ejecución.'
@@ -64,7 +74,10 @@ const TYPE_META = {
   'n8n-nodes-base.if': { cat: 'Decisión', color: '#bc4c00' },
   'n8n-nodes-base.scheduleTrigger': { cat: 'Reloj', color: '#8250df' },
   'n8n-nodes-base.errorTrigger': { cat: 'Alerta', color: '#cf222e' },
-  'n8n-nodes-base.googleDrive': { cat: 'Drive', color: '#9a6700' }
+  'n8n-nodes-base.googleDrive': { cat: 'Drive', color: '#9a6700' },
+  'n8n-nodes-base.executeWorkflowTrigger': { cat: 'Entrada', color: '#0969da' },
+  'n8n-nodes-base.executeWorkflow': { cat: 'Deriva', color: '#8250df' },
+  'n8n-nodes-base.switch': { cat: 'Decisión', color: '#bc4c00' }
 };
 
 const NODE_LABELS = {
@@ -119,7 +132,30 @@ const NODE_LABELS = {
   get_telegram_file: 'Obtiene la foto',
   download_telegram_file: 'Descarga la foto',
   upload_to_drive: 'Guarda en Drive',
-  error_trigger: 'Se activa con el error'
+  error_trigger: 'Se activa con el error',
+  entrada_router: 'Recibe del router',
+  entrada_manual: 'Ejecución a demanda',
+  clasificar: 'Entiende la intención',
+  si_ambiguo_y_llm: '¿Es ambiguo?',
+  gemini_clasificar: 'Pide una etiqueta a Gemini',
+  aplicar_llm: 'Aplica la etiqueta',
+  derivar: '¿A qué flujo va?',
+  ir_consulta: 'Consulta de stock',
+  ir_reserva: 'Reserva',
+  ir_estado: 'Estado del pedido',
+  ir_receta: 'Recepción de receta',
+  ir_aprobacion: 'Aprobación farmacéutica',
+  ir_despacho: 'Despacho',
+  ir_expiracion: 'Revisión de vencidos',
+  responder: 'Responde por Telegram',
+  responder_falla: 'Avisa que hubo un problema',
+  parse_staff_command: 'Entiende el comando',
+  evaluate_dispatch: 'Valida la transición',
+  update_despacho: 'Actualiza el despacho',
+  if_entrega: '¿Es entrega?',
+  reply_staff: 'Responde al personal',
+  aviso_farmaceutico: 'Prepara el aviso',
+  notify_pharmacist: 'Avisa al farmacéutico'
 };
 
 function labelFor(name) {
@@ -226,13 +262,13 @@ export function renderMapHtml(workflows) {
 
   const pwa = '<section class="wf" id="wf-pwa">\n' +
     '  <h2>PWA del conductor <span class="file">pwa/ (US-11)</span></h2>\n' +
-    '  <p class="resumen">La vista del conductor corre en el navegador del teléfono: muestra los despachos y los tiempos estimados de viaje. Hoy funciona en modo demostración; su conexión definitiva con los flujos está planificada.</p>\n' +
+    '  <p class="resumen">Prototipo exploratorio en modo demostración, fuera del alcance firmado de este semestre. El avance del despacho lo marca el personal por Telegram (US-22).</p>\n' +
     '  <div class="pwa-note">Esta parte no es un flujo de n8n: es una aplicación web (PWA) que se abre en el teléfono.</div>\n' +
     '</section>\n';
 
   const leyenda = [
     ['Mensaje', '#0969da'], ['Lógica', '#57606a'], ['Planilla', '#1a7f37'], ['Envío', '#0969da'],
-    ['Decisión', '#bc4c00'], ['Reloj', '#8250df'], ['Alerta', '#cf222e'], ['Drive', '#9a6700']
+    ['Decisión', '#bc4c00'], ['Reloj', '#8250df'], ['Alerta', '#cf222e'], ['Drive', '#9a6700'], ['Deriva', '#8250df']
   ].map(([t, c]) => '<span class="lg"><span class="lg-dot" style="background:' + c + '"></span>' + t + '</span>').join('');
 
   return '<!DOCTYPE html>\n' +

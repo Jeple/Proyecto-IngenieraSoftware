@@ -1,0 +1,39 @@
+@startuml secuencia-consulta
+!include estilo.iuml
+title Secuencia · Consulta de stock con error de escritura (US-04 vía router US-17)
+
+actor Vecino
+participant "Telegram\nBot API" as TG
+participant "Router\nUS-17" as R
+participant "Consulta\nUS-04" as C
+database "Google Sheets" as S
+
+Vecino -> TG : «hola, ¿hay pregavalina 75?»
+TG -> R : POST /webhook/telegram-bot\n(X-Telegram-Bot-Api-Secret-Token)
+R --> TG : 200 OK (inmediato, onReceived)
+activate R
+R -> R : clasificar(): valida secreto;\nno es foto, comando ni urgencia;\nlimpia muletillas → «pregavalina 75»
+R -> C : Execute Workflow (update con texto limpio)
+activate C
+C -> C : parse_incoming(): vuelve a validar el secreto
+C -> S : leer catalogo
+S --> C : filas
+C -> S : leer inventario
+S --> C : filas
+C -> C : matchMedicine(): búsqueda difusa\n(Levenshtein + cobertura + dosis ≥ 0,72)
+C -> C : stock disponible = stock_real − stock_reservado
+alt hay stock
+  C -> TG : sendMessage «Neurogab 75 mg — $7.490 c/u. Stock disponible: 65»
+else agotado
+  C -> TG : sendMessage «… agotado. Bioequivalentes con stock: Neurogab 75 mg …»
+else sin coincidencia
+  C -> TG : sendMessage «No encontré … (no inventa productos, R-02)»
+end
+deactivate C
+alt el subflujo falla
+  R -> TG : sendMessage «Tuvimos un problema… SAMU 131 si es urgencia»
+  note right : US-21 avisa al administrador\ncon el workflow y el nodo
+end
+deactivate R
+TG -> Vecino : respuesta
+@enduml

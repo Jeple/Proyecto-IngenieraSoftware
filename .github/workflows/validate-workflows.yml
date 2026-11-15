@@ -6,22 +6,34 @@ on:
       - "workflows/**"
       - "scripts/**"
       - "pwa/**"
+      - "docker-compose.yml"
       - ".github/workflows/validate-workflows.yml"
   pull_request:
     paths:
       - "workflows/**"
       - "scripts/**"
       - "pwa/**"
+      - "docker-compose.yml"
       - ".github/workflows/validate-workflows.yml"
 
 jobs:
   validate-json:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Dependency-free: uses only Node.js (preinstalled on ubuntu-latest).
+      # Versión de Node fijada (control de configuración; las pruebas usan Node >= 18).
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Escaneo de secretos y RUT (mismo script que se corre en local).
+      - name: Check secrets
+        run: bash scripts/check_secrets.sh
+
+      # Dependency-free: uses only Node.js (preinstalled on ubuntu-24.04).
       - name: Validate workflow JSON files
         run: |
           node -e '
@@ -99,6 +111,19 @@ jobs:
       - name: Run US-09 email recipe tests
         run: node scripts/test-recetas-email.mjs
 
+      # US-17: router de intenciones + pruebas de contrato con US-04/05/06/20/22.
+      - name: Run US-17 router tests
+        run: node scripts/test-router.mjs
+
+      # US-22: despacho marcado por el personal + aviso al farmacéutico (US-09).
+      - name: Run US-22 dispatch tests
+        run: node scripts/test-despacho.mjs
+
+      # Reglas estáticas para n8n 2.44.2 real (env, expresiones, credenciales,
+      # versiones de nodo, webhook único, imagen fijada).
+      - name: Run n8n workflow convention tests
+        run: node scripts/test-workflows-n8n.mjs
+
       - name: Warn when workflows/ has no JSON files yet
         run: |
           count=$(find workflows -maxdepth 1 -name '*.json' | wc -l)
@@ -107,3 +132,41 @@ jobs:
           else
             echo "Found $count workflow JSON file(s)."
           fi
+
+  # Integración con n8n REAL (misma imagen fijada) y Telegram simulado: importa y
+  # publica los 9 flujos, envía updates al webhook único y verifica respuestas,
+  # derivación a subflujos y alertas US-21. No usa credenciales reales.
+  integracion-n8n:
+    # Runner fijado (control de configuración). Las dos primeras corridas de este job
+    # (10-nov, con «ubuntu-latest») se cortaron por tiempo tras «Levantando n8n». La causa
+    # no se confirmó: el arreglo cambió a la vez el runner y los límites de cada paso.
+    # Con ubuntu-24.04 y esos límites el job termina en unos 2,5 min.
+    runs-on: ubuntu-24.04
+    needs: validate-json
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pull n8n image
+        run: |
+          docker version --format 'Docker cliente {{.Client.Version}}, servidor {{.Server.Version}}'
+          docker pull n8nio/n8n:2.44.2
+
+      # Límite propio del paso: si se excede, el paso falla y el diagnóstico de abajo alcanza a correr.
+      - name: Run integration test
+        timeout-minutes: 15
+        run: node scripts/local/prueba-integracion.mjs --n 20
+
+      # Solo si falla o se corta: estado del contenedor, log de n8n y readiness.
+      - name: Diagnóstico de n8n
+        if: failure() || cancelled()
+        run: |
+          docker ps -a --filter name=farmacia-n8n-integracion
+          docker logs --tail 80 farmacia-n8n-integracion 2>&1 || true
+          curl -sS -m 5 -o /dev/null -w 'readiness: HTTP %{http_code}\n' http://127.0.0.1:5690/healthz/readiness || true

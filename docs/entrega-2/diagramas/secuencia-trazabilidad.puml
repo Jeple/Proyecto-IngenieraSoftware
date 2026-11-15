@@ -1,0 +1,32 @@
+@startuml secuencia-trazabilidad
+!include estilo.iuml
+title Secuencia · Estado del pedido por RUT o código con titularidad (US-06)
+
+actor "Vecino\n(titular)" as V
+actor "Otro chat" as X
+participant "Telegram" as TG
+participant "Router\nUS-17" as R
+participant "Estado\nUS-06" as E
+database "Google Sheets" as S
+
+V -> TG : «estado 11.111.111-1»
+TG -> R : webhook (secreto)
+R -> R : RUT o código FAR → intent = estado
+R -> E : Execute Workflow
+activate E
+E -> E : parse_tracking_request(): código manda;\nsi no hay código, RUT normalizado
+E -> S : leer ordenes y despachos
+S --> E : filas
+E -> E : filtra por titularidad:\nordenes.telefono == chat_id del mensaje
+alt pedido propio encontrado
+  E -> TG : «Tu pedido #FAR-0001 va en camino.»
+else inexistente o ajeno
+  E -> TG : «No encontré ese pedido…» (mismo texto en ambos casos)
+end
+deactivate E
+
+X -> TG : «estado #FAR-0001» (pedido de otro vecino)
+TG -> R : webhook
+R -> E : Execute Workflow
+E -> TG : «No encontré ese pedido…»\n(no revela que existe: Ley 19.628)
+@enduml

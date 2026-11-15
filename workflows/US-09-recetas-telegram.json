@@ -1,24 +1,22 @@
 {
+  "id": "farmaciaUS09rect",
   "name": "US-09 Recetas por Telegram",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "telegram-recetas",
-        "responseMode": "onReceived",
-        "options": {}
+        "inputSource": "passthrough"
       },
       "id": "us09n01",
-      "name": "webhook_recetas",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "name": "entrada_router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [260, 340],
-      "webhookId": "telegram-recetas"
+      "notes": "Entrada interna: el router de Telegram (US-17, webhook telegram-bot) invoca este flujo con el mismo update y encabezados. Antes: webhook POST telegram-recetas."
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// US-09: parse inbound Telegram update (recipe photo ingestion).\n// Named functions are extracted and unit-tested outside n8n; the data\n// assembly below is guarded so the file can be loaded standalone.\n\nfunction isAuthorized(headers, secret) {\n  if (!secret) return false;\n  const source = headers || {};\n  let value;\n  for (const key of Object.keys(source)) {\n    if (String(key).toLowerCase() === 'x-telegram-bot-api-secret-token') {\n      value = source[key];\n      break;\n    }\n  }\n  if (value === undefined || value === null) return false;\n  const provided = Array.isArray(value) ? value[0] : value;\n  return String(provided) === String(secret);\n}\n\nfunction extractCode(text) {\n  if (typeof text !== 'string') return '';\n  const match = text.match(/FAR-\\d{4}/i);\n  return match ? match[0].toUpperCase() : '';\n}\n\nfunction selectPhotoFileId(photo) {\n  if (!Array.isArray(photo) || photo.length === 0) return null;\n  const last = photo[photo.length - 1];\n  if (!last || typeof last.file_id !== 'string') return null;\n  return last.file_id;\n}\n\nfunction parseUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chatId = message.chat ? message.chat.id : undefined;\n  if (chatId === undefined || chatId === null) return [];\n  const codigo_far = extractCode(message.caption) || extractCode(message.text);\n  const file_id = selectPhotoFileId(message.photo);\n  return [\n    {\n      json: {\n        chat_id: chatId,\n        codigo_far: codigo_far,\n        file_id: file_id,\n        source: 'telegram'\n      }\n    }\n  ];\n}\n\nif (typeof $ !== 'undefined') {\n  const event = $input.first().json || {};\n  return parseUpdate(\n    event.body || {},\n    event.headers || {},\n    process.env.TELEGRAM_WEBHOOK_SECRET\n  );\n}\n"
+        "jsCode": "// US-09: parse inbound Telegram update (recipe photo ingestion).\n// Named functions are extracted and unit-tested outside n8n; the data\n// assembly below is guarded so the file can be loaded standalone.\n\nfunction isAuthorized(headers, secret) {\n  if (!secret) return false;\n  const source = headers || {};\n  let value;\n  for (const key of Object.keys(source)) {\n    if (String(key).toLowerCase() === 'x-telegram-bot-api-secret-token') {\n      value = source[key];\n      break;\n    }\n  }\n  if (value === undefined || value === null) return false;\n  const provided = Array.isArray(value) ? value[0] : value;\n  return String(provided) === String(secret);\n}\n\nfunction extractCode(text) {\n  if (typeof text !== 'string') return '';\n  const match = text.match(/FAR-\\d{4}/i);\n  return match ? match[0].toUpperCase() : '';\n}\n\nfunction selectPhotoFileId(photo) {\n  if (!Array.isArray(photo) || photo.length === 0) return null;\n  const last = photo[photo.length - 1];\n  if (!last || typeof last.file_id !== 'string') return null;\n  return last.file_id;\n}\n\nfunction parseUpdate(update, headers, secret) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chatId = message.chat ? message.chat.id : undefined;\n  if (chatId === undefined || chatId === null) return [];\n  const codigo_far = extractCode(message.caption) || extractCode(message.text);\n  const file_id = selectPhotoFileId(message.photo);\n  return [\n    {\n      json: {\n        chat_id: chatId,\n        codigo_far: codigo_far,\n        file_id: file_id,\n        source: 'telegram'\n      }\n    }\n  ];\n}\n\nif (typeof $ !== 'undefined') {\n  const event = $input.first().json || {};\n  return parseUpdate(\n    event.body || {},\n    event.headers || {},\n    $env.TELEGRAM_WEBHOOK_SECRET\n  );\n}\n"
       },
       "id": "us09n02",
       "name": "parse_recipe_message",
@@ -28,12 +26,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -53,12 +51,23 @@
       "name": "read_ordenes",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [700, 340]
+      "position": [700, 340],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// US-09: decide the single reply for the parsed Telegram recipe message.\n// Named functions are extracted and unit-tested outside n8n; the n8n data\n// assembly is guarded with typeof $ !== 'undefined'.\n\nfunction isTitularOf(order, chatId) {\n  const owner = order && order.telefono !== null && order.telefono !== undefined ? String(order.telefono) : '';\n  const requester = chatId === null || chatId === undefined ? '' : String(chatId);\n  return owner !== '' && owner === requester;\n}\n\nfunction classifyAction(input) {\n  const codigo = input && input.codigo_far;\n  const fileId = input && input.file_id;\n  const order = input && input.order;\n  const chatId = input && input.chat_id;\n  if (!codigo) return 'ASK_CODE';\n  // Titularidad (GitHub #19): la receta solo se asocia desde el chat que creó\n  // el pedido; el mismo mensaje cubre código inexistente y chat ajeno.\n  if (!order || !isTitularOf(order, chatId)) return 'NOT_FOUND';\n  if (order.estado !== 'PENDIENTE_RECETA') return 'NOT_PENDING';\n  if (!fileId) return 'ASK_PHOTO';\n  return 'UPLOAD';\n}\n\nfunction buildRecipeMessage(action, codigo_far) {\n  if (action === 'ASK_CODE') {\n    return 'No recibí el código del pedido. Reenvía la foto con el código #FAR-XXXX en el pie de foto.';\n  }\n  if (action === 'ASK_PHOTO') {\n    return 'Tu pedido #' + codigo_far + ' está esperando la receta. Adjunta la foto de la receta con el código en el pie de foto.';\n  }\n  if (action === 'NOT_FOUND') {\n    return 'No encontré ese pedido. Revisa el código #FAR-XXXX; la receta se asocia solo desde el chat con el que hiciste la reserva.';\n  }\n  if (action === 'NOT_PENDING') {\n    return 'Tu pedido #' + codigo_far + ' no está esperando receta. Consulta su estado en la farmacia.';\n  }\n  if (action === 'UPLOAD') {\n    return 'Recibimos la receta de tu pedido #' + codigo_far + '. Ya pasa a preparación.';\n  }\n  return '';\n}\n\nfunction buildDriveName(codigo, timestampMs, extension) {\n  return codigo + '/receta-' + timestampMs + '.' + extension;\n}\n\nif (typeof $ !== 'undefined') {\n  const parsed = $('parse_recipe_message').first().json;\n  const rows = $('read_ordenes').all();\n  let order = null;\n  if (parsed.codigo_far) {\n    for (const row of rows) {\n      const value = row.json || {};\n      if (String(value.codigo_far) === String(parsed.codigo_far)) {\n        order = value;\n        break;\n      }\n    }\n  }\n  const action = classifyAction({\n    codigo_far: parsed.codigo_far,\n    file_id: parsed.file_id,\n    order: order,\n    chat_id: parsed.chat_id\n  });\n  return [\n    {\n      json: {\n        chat_id: parsed.chat_id,\n        source: parsed.source || 'telegram',\n        codigo_far: parsed.codigo_far,\n        file_id: parsed.file_id,\n        action: action,\n        message: buildRecipeMessage(action, parsed.codigo_far)\n      }\n    }\n  ];\n}\n"
+        "jsCode": "// US-09: decide the single reply for the parsed Telegram recipe message.\n// Named functions are extracted and unit-tested outside n8n; the n8n data\n// assembly is guarded with typeof $ !== 'undefined'.\n\nfunction isTitularOf(order, chatId) {\n  const owner = order && order.telefono !== null && order.telefono !== undefined ? String(order.telefono) : '';\n  const requester = chatId === null || chatId === undefined ? '' : String(chatId);\n  return owner !== '' && owner === requester;\n}\n\nfunction classifyAction(input) {\n  const codigo = input && input.codigo_far;\n  const fileId = input && input.file_id;\n  const order = input && input.order;\n  const chatId = input && input.chat_id;\n  if (!codigo) return 'ASK_CODE';\n  // Titularidad (GitHub #19): la receta solo se asocia desde el chat que creó\n  // el pedido; el mismo mensaje cubre código inexistente y chat ajeno.\n  if (!order || !isTitularOf(order, chatId)) return 'NOT_FOUND';\n  if (order.estado !== 'PENDIENTE_RECETA') return 'NOT_PENDING';\n  if (!fileId) return 'ASK_PHOTO';\n  return 'UPLOAD';\n}\n\nfunction buildRecipeMessage(action, codigo_far) {\n  if (action === 'ASK_CODE') {\n    return 'No recibí el código del pedido. Reenvía la foto con el código #FAR-XXXX en el pie de foto.';\n  }\n  if (action === 'ASK_PHOTO') {\n    return 'Tu pedido #' + codigo_far + ' está esperando la receta. Adjunta la foto de la receta con el código en el pie de foto.';\n  }\n  if (action === 'NOT_FOUND') {\n    return 'No encontré ese pedido. Revisa el código #FAR-XXXX; la receta se asocia solo desde el chat con el que hiciste la reserva.';\n  }\n  if (action === 'NOT_PENDING') {\n    return 'Tu pedido #' + codigo_far + ' no está esperando receta. Consulta su estado en la farmacia.';\n  }\n  if (action === 'UPLOAD') {\n    return 'Recibimos la receta de tu pedido #' + codigo_far + '. Un químico farmacéutico la revisará y te avisaremos por este chat.';\n  }\n  return '';\n}\n\nfunction buildDriveName(codigo, timestampMs, extension) {\n  return codigo + '/receta-' + timestampMs + '.' + extension;\n}\n\nif (typeof $ !== 'undefined') {\n  const parsed = $('parse_recipe_message').first().json;\n  const rows = $('read_ordenes').all();\n  let order = null;\n  if (parsed.codigo_far) {\n    for (const row of rows) {\n      const value = row.json || {};\n      if (String(value.codigo_far) === String(parsed.codigo_far)) {\n        order = value;\n        break;\n      }\n    }\n  }\n  const action = classifyAction({\n    codigo_far: parsed.codigo_far,\n    file_id: parsed.file_id,\n    order: order,\n    chat_id: parsed.chat_id\n  });\n  return [\n    {\n      json: {\n        chat_id: parsed.chat_id,\n        source: parsed.source || 'telegram',\n        codigo_far: parsed.codigo_far,\n        file_id: parsed.file_id,\n        action: action,\n        message: buildRecipeMessage(action, parsed.codigo_far)\n      }\n    }\n  ];\n}\n"
       },
       "id": "us09n04",
       "name": "build_action",
@@ -99,7 +108,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/getFile",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/getFile",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -120,16 +129,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/file",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "file_path",
-              "value": "={{ $json.result.file_path }}"
-            }
-          ]
-        },
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/file/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.result.file_path }}",
         "options": {
           "response": {
             "response": {
@@ -147,31 +147,42 @@
     },
     {
       "parameters": {
-        "operation": "upload",
-        "name": "={{ $('build_action').first().json.codigo_far }}/receta-{{ Date.now() }}.jpg",
+        "authentication": "oAuth2",
+        "name": "=receta-{{ $('build_action').first().json.codigo_far }}-{{ $now.toFormat('yyyyLLdd-HHmmss') }}.jpg",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
         "folderId": {
           "__rl": true,
           "mode": "id",
-          "value": "root"
+          "value": "={{ $env.GOOGLE_DRIVE_RECETAS_FOLDER_ID }}"
         },
-        "binaryPropertyName": "data",
+        "inputDataFieldName": "data",
         "options": {}
       },
       "id": "us09n08",
       "name": "upload_to_drive",
       "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 2.1,
+      "typeVersion": 3,
       "position": [1800, 180],
-      "notes": "Upload binary property 'data' to Drive. Destination name mirrors buildDriveName(codigo, timestampMs, ext): '<codigo>/receta-<timestampMs>.jpg' (timestamp produced inline via Date.now()). Parameter-level validation (operation/name/folderId/binaryPropertyName keys for typeVersion 2.1) happens on first import - open risk: adjust key names if the imported node flags them."
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "farmaciaGoogleDriveOAuth",
+          "name": "Google Drive (OAuth)"
+        }
+      },
+      "notes": "Sube la receta al Drive del usuario con OAuth2 (credencial «Google Drive (OAuth)», conectada una vez en el editor de n8n). Las cuentas de servicio no tienen cuota de almacenamiento."
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -189,7 +200,44 @@
           "matchingColumns": [
             "codigo_far"
           ],
-          "schema": []
+          "schema": [
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url_receta",
+              "displayName": "url_receta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_receta",
+              "displayName": "fecha_receta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -197,16 +245,25 @@
       "name": "update_orden",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2020, 180]
+      "position": [2020, 180],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -226,7 +283,89 @@
             "estado_nuevo": "RECETA_RECIBIDA",
             "actor": "={{ 'cliente:' + $('build_action').first().json.chat_id }}"
           },
-          "schema": []
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "delta_reservado",
+              "displayName": "delta_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "detalle",
+              "displayName": "detalle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_anterior",
+              "displayName": "estado_anterior",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_nuevo",
+              "displayName": "estado_nuevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -234,12 +373,21 @@
       "name": "append_bitacora",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2240, 180]
+      "position": [2240, 180],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      }
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// US-09: final success reply after Drive upload + sheet updates.\n// Named functions are extracted and unit-tested outside n8n; the n8n data\n// assembly is guarded with typeof $ !== 'undefined'.\n\nfunction buildRecipeMessage(action, codigo_far) {\n  if (action === 'ASK_CODE') {\n    return 'No recibí el código del pedido. Reenvía la foto con el código #FAR-XXXX en el pie de foto.';\n  }\n  if (action === 'ASK_PHOTO') {\n    return 'Tu pedido #' + codigo_far + ' está esperando la receta. Adjunta la foto de la receta con el código en el pie de foto.';\n  }\n  if (action === 'NOT_FOUND') {\n    return 'No encontré ese pedido. Revisa el código #FAR-XXXX; la receta se asocia solo desde el chat con el que hiciste la reserva.';\n  }\n  if (action === 'NOT_PENDING') {\n    return 'Tu pedido #' + codigo_far + ' no está esperando receta. Consulta su estado en la farmacia.';\n  }\n  if (action === 'UPLOAD') {\n    return 'Recibimos la receta de tu pedido #' + codigo_far + '. Ya pasa a preparación.';\n  }\n  return '';\n}\n\nif (typeof $ !== 'undefined') {\n  const origin = $('build_action').first().json;\n  return [\n    {\n      json: {\n        chat_id: origin.chat_id,\n        source: origin.source || 'telegram',\n        message: buildRecipeMessage('UPLOAD', origin.codigo_far)\n      }\n    }\n  ];\n}\n"
+        "jsCode": "// US-09: final success reply after Drive upload + sheet updates.\n// Named functions are extracted and unit-tested outside n8n; the n8n data\n// assembly is guarded with typeof $ !== 'undefined'.\n\nfunction buildRecipeMessage(action, codigo_far) {\n  if (action === 'ASK_CODE') {\n    return 'No recibí el código del pedido. Reenvía la foto con el código #FAR-XXXX en el pie de foto.';\n  }\n  if (action === 'ASK_PHOTO') {\n    return 'Tu pedido #' + codigo_far + ' está esperando la receta. Adjunta la foto de la receta con el código en el pie de foto.';\n  }\n  if (action === 'NOT_FOUND') {\n    return 'No encontré ese pedido. Revisa el código #FAR-XXXX; la receta se asocia solo desde el chat con el que hiciste la reserva.';\n  }\n  if (action === 'NOT_PENDING') {\n    return 'Tu pedido #' + codigo_far + ' no está esperando receta. Consulta su estado en la farmacia.';\n  }\n  if (action === 'UPLOAD') {\n    return 'Recibimos la receta de tu pedido #' + codigo_far + '. Un químico farmacéutico la revisará y te avisaremos por este chat.';\n  }\n  return '';\n}\n\nif (typeof $ !== 'undefined') {\n  const origin = $('build_action').first().json;\n  return [\n    {\n      json: {\n        chat_id: origin.chat_id,\n        source: origin.source || 'telegram',\n        message: buildRecipeMessage('UPLOAD', origin.codigo_far)\n      }\n    }\n  ];\n}\n"
       },
       "id": "us09n11",
       "name": "finalize_success",
@@ -250,10 +398,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"chat_id\": \"={{ $json.chat_id }}\",\n  \"text\": \"={{ $json.message }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.message }) }}",
         "options": {}
       },
       "id": "us09n13",
@@ -264,10 +412,39 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-09 — aviso_farmaceutico.\n *\n * Cuando la receta ya quedó en Drive y el pedido pasó a RECETA_RECIBIDA, avisa a\n * cada químico farmacéutico autorizado ($env.TELEGRAM_PHARMACIST_CHAT_IDS) para\n * que apruebe o rechace (US-20). El aviso no incluye RUT ni dirección: solo el\n * código, el medicamento, la cantidad y el enlace a la receta, que se abre\n * únicamente con una cuenta con acceso a la carpeta restringida (RNF-07).\n *\n * Salida: un ítem { chat_id, message } por farmacéutico, o [] si no hay lista.\n */\nfunction parseIdList(list) {\n  const raw = typeof list === 'string' ? list : '';\n  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);\n}\n\nfunction driveLink(upload) {\n  if (!upload || typeof upload !== 'object') return '';\n  if (upload.webViewLink) return String(upload.webViewLink);\n  if (upload.id) return 'https://drive.google.com/file/d/' + upload.id + '/view';\n  return '';\n}\n\nfunction buildPharmacistAlerts(codigoFar, order, upload, pharmacistList) {\n  const ids = parseIdList(pharmacistList);\n  if (!ids.length || !codigoFar) return [];\n  const codigo = String(codigoFar).toUpperCase().replace(/^#/, '');\n  const detalle = order\n    ? ' (' + String(order.medicamento_id || 'medicamento sin id') + ' x' + String(order.cantidad || '?') + ')'\n    : '';\n  const enlace = driveLink(upload);\n  const message =\n    'Nueva receta recibida para #' + codigo + detalle + '.' +\n    (enlace ? '\\nVer receta: ' + enlace : '') +\n    '\\nPara decidir, responda: aprobar ' + codigo + '  o  rechazar ' + codigo + ' [motivo]';\n  return ids.map((id) => ({ json: { chat_id: id, message: message } }));\n}\n\n// --- ensamblaje n8n ---\nif (typeof $ !== 'undefined') {\n  try {\n    const action = $('build_action').first().json;\n    const upload = $('upload_to_drive').first().json;\n    const codigo = String(action.codigo_far || '').toUpperCase().replace(/^#/, '');\n    const fila = $('read_ordenes').all()\n      .map((r) => (r && r.json ? r.json : r))\n      .find((r) => String(r.codigo_far || '').toUpperCase().replace(/^#/, '') === codigo) || null;\n    return buildPharmacistAlerts(codigo, fila, upload, $env.TELEGRAM_PHARMACIST_CHAT_IDS);\n  } catch (err) {\n    return [];\n  }\n}\n"
+      },
+      "id": "e88fab0d-d2da-49c9-bcc8-e8d613592416",
+      "name": "aviso_farmaceutico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2680, 40]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.message }) }}",
+        "options": {}
+      },
+      "id": "db23fde6-d272-4228-aca5-7ee97fc65fba",
+      "name": "notify_pharmacist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2900, 40],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
-    "webhook_recetas": {
+    "entrada_router": {
       "main": [
         [
           {
@@ -391,6 +568,22 @@
             "node": "send_telegram",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "aviso_farmaceutico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "aviso_farmaceutico": {
+      "main": [
+        [
+          {
+            "node": "notify_pharmacist",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -398,12 +591,13 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "farmaciaUS21aler"
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "versionId": "3f7a1c92-5b8e-4d61-9a0f-2c8e4b1d7a35",
+  "versionId": "55afa4d5-9da6-4a0a-bbb8-d18f4b4a9652",
   "tags": []
 }

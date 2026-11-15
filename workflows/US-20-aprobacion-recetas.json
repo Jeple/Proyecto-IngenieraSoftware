@@ -1,28 +1,25 @@
 {
+  "id": "farmaciaUS20apro",
   "name": "US-20 Aprobación farmacéutica de recetas",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "telegram-aprobacion",
-        "responseMode": "onReceived",
-        "webhookId": "us20-webhook-aprobacion",
-        "options": {}
+        "inputSource": "passthrough"
       },
-      "name": "webhook_aprobacion",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "id": "us20-node-1",
+      "name": "entrada_router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [
         180,
         300
       ],
-      "id": "us20-node-1",
-      "webhookId": "us20-webhook-aprobacion"
+      "notes": "Entrada interna: el router de Telegram (US-17, webhook telegram-bot) invoca este flujo con el mismo update y encabezados. Antes: webhook POST telegram-aprobacion."
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * US-20 — parse_pharmacist_command.\n *\n * Authorization is two-layered:\n *   1. Telegram webhook secret (same contract as US-04/US-05/US-06/US-09):\n *      header X-Telegram-Bot-Api-Secret-Token compared against\n *      process.env.TELEGRAM_WEBHOOK_SECRET.\n *   2. The sender chat must be listed in process.env.TELEGRAM_PHARMACIST_CHAT_IDS\n *      (comma-separated chat_id list). Any other chat is dropped silently.\n *\n * Accepted commands (case-insensitive, optional \"/\" prefix and optional \"#\"):\n *   aprobar FAR-XXXX\n *   rechazar FAR-XXXX [motivo]\n *\n * Outputs ONE item { chat_id, command, codigo_far, motivo, text } or an EMPTY\n * array (unauthorized, non-text, or not a command). Never throws: the\n * immediate 200 was already returned by responseMode onReceived (RNF-01).\n */\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/** True when chatId belongs to the comma-separated pharmacist list. */\nfunction isPharmacist(chatId, list) {\n  if (chatId === null || chatId === undefined) return false;\n  const raw = typeof list === 'string' ? list : '';\n  const ids = raw\n    .split(',')\n    .map(function (s) { return s.trim(); })\n    .filter(function (s) { return s.length > 0; });\n  return ids.length > 0 && ids.indexOf(String(chatId)) !== -1;\n}\n\n/** Sanitizes free text so it can travel inside JSON bodies and logs safely. */\nfunction sanitizeMotivo(value) {\n  const raw = typeof value === 'string' ? value : '';\n  return raw\n    .replace(/[\"\\\\\\r\\n\\t]+/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, 120);\n}\n\n/**\n * Parses \"aprobar FAR-XXXX\" / \"rechazar FAR-XXXX [motivo]\".\n * Returns { command, codigo_far, motivo } or null when the text is not a command.\n */\nfunction parsePharmacistCommand(text) {\n  if (typeof text !== 'string') return null;\n  const m = /^\\s*\\/?\\s*(aprobar|rechazar)\\s+#?(FAR-\\d{4})\\b\\s*(.*)$/i.exec(text);\n  if (!m) return null;\n  return {\n    command: m[1].toLowerCase(),\n    codigo_far: '#' + m[2].toUpperCase(),\n    motivo: sanitizeMotivo(m[3])\n  };\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item or an EMPTY array\n * (unauthorized, not a pharmacist, non-text, or not a command).\n */\nfunction parseTelegramUpdate(update, headers, secret, pharmacists) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  if (!isPharmacist(chat, pharmacists)) return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return [];\n  const parsed = parsePharmacistCommand(text);\n  if (!parsed) return [];\n  return [\n    {\n      json: {\n        chat_id: chat,\n        command: parsed.command,\n        codigo_far: parsed.codigo_far,\n        motivo: parsed.motivo,\n        text: text\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update = json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        process.env.TELEGRAM_WEBHOOK_SECRET,\n        process.env.TELEGRAM_PHARMACIST_CHAT_IDS\n      );\n      if (out.length) return out;\n    }\n  } catch (err) {\n    return [];\n  }\n  return [];\n}\n"
+        "jsCode": "/**\n * US-20 — parse_pharmacist_command.\n *\n * Authorization is two-layered:\n *   1. Telegram webhook secret (same contract as US-04/US-05/US-06/US-09):\n *      header X-Telegram-Bot-Api-Secret-Token compared against\n *      $env.TELEGRAM_WEBHOOK_SECRET.\n *   2. The sender chat must be listed in $env.TELEGRAM_PHARMACIST_CHAT_IDS\n *      (comma-separated chat_id list). Any other chat is dropped silently.\n *\n * Accepted commands (case-insensitive, optional \"/\" prefix and optional \"#\"):\n *   aprobar FAR-XXXX\n *   rechazar FAR-XXXX [motivo]\n *\n * Outputs ONE item { chat_id, command, codigo_far, motivo, text } or an EMPTY\n * array (unauthorized, non-text, or not a command). Never throws: the\n * immediate 200 was already returned by responseMode onReceived (RNF-01).\n */\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) =>\n      typeof name === 'string' &&\n      name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/** True when chatId belongs to the comma-separated pharmacist list. */\nfunction isPharmacist(chatId, list) {\n  if (chatId === null || chatId === undefined) return false;\n  const raw = typeof list === 'string' ? list : '';\n  const ids = raw\n    .split(',')\n    .map(function (s) { return s.trim(); })\n    .filter(function (s) { return s.length > 0; });\n  return ids.length > 0 && ids.indexOf(String(chatId)) !== -1;\n}\n\n/** Sanitizes free text so it can travel inside JSON bodies and logs safely. */\nfunction sanitizeMotivo(value) {\n  const raw = typeof value === 'string' ? value : '';\n  return raw\n    .replace(/[\"\\\\\\r\\n\\t]+/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, 120);\n}\n\n/**\n * Parses \"aprobar FAR-XXXX\" / \"rechazar FAR-XXXX [motivo]\".\n * Returns { command, codigo_far, motivo } or null when the text is not a command.\n */\nfunction parsePharmacistCommand(text) {\n  if (typeof text !== 'string') return null;\n  const m = /^\\s*\\/?\\s*(aprobar|rechazar)\\s+#?(FAR-\\d{4})\\b\\s*(.*)$/i.exec(text);\n  if (!m) return null;\n  return {\n    command: m[1].toLowerCase(),\n    codigo_far: '#' + m[2].toUpperCase(),\n    motivo: sanitizeMotivo(m[3])\n  };\n}\n\n/**\n * Pure parser: one Telegram update -> ONE item or an EMPTY array\n * (unauthorized, not a pharmacist, non-text, or not a command).\n */\nfunction parseTelegramUpdate(update, headers, secret, pharmacists) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chat =\n    message.chat &&\n    (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  if (!isPharmacist(chat, pharmacists)) return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  if (!text) return [];\n  const parsed = parsePharmacistCommand(text);\n  if (!parsed) return [];\n  return [\n    {\n      json: {\n        chat_id: chat,\n        command: parsed.command,\n        codigo_far: parsed.codigo_far,\n        motivo: parsed.motivo,\n        text: text\n      }\n    }\n  ];\n}\n\n// --- n8n data assembly (guarded so the test harness can load the functions) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const item = items[i];\n      const json = item && item.json ? item.json : item;\n      const headers =\n        json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update = json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        $env.TELEGRAM_WEBHOOK_SECRET,\n        $env.TELEGRAM_PHARMACIST_CHAT_IDS\n      );\n      if (out.length) return out;\n    }\n  } catch (err) {\n    return [];\n  }\n  return [];\n}\n"
       },
       "name": "parse_pharmacist_command",
       "type": "n8n-nodes-base.code",
@@ -35,12 +32,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -63,16 +60,27 @@
         620,
         300
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "id": "us20-node-3"
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -95,6 +103,17 @@
         840,
         300
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "id": "us20-node-4"
     },
     {
@@ -147,12 +166,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -168,7 +187,26 @@
           "matchingColumns": [
             "codigo_far"
           ],
-          "schema": []
+          "schema": [
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -179,6 +217,15 @@
         1500,
         200
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "id": "us20-node-7"
     },
     {
@@ -217,12 +264,12 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -240,7 +287,44 @@
           "matchingColumns": [
             "medicamento_id"
           ],
-          "schema": []
+          "schema": [
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock_real",
+              "displayName": "stock_real",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock_reservado",
+              "displayName": "stock_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ultima_actualizacion",
+              "displayName": "ultima_actualizacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -251,16 +335,25 @@
         1940,
         100
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "id": "us20-node-9"
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "append",
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "REPLACE_WITH_SPREADSHEET_ID",
-          "cachedResultName": "Farmacia Municipal Catalogo"
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
         },
         "sheetName": {
           "__rl": true,
@@ -281,7 +374,89 @@
             "actor": "={{ $('evaluate_approval').first().json.bitacora_row.actor }}"
           },
           "matchingColumns": [],
-          "schema": []
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "delta_reservado",
+              "displayName": "delta_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "detalle",
+              "displayName": "detalle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_anterior",
+              "displayName": "estado_anterior",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_nuevo",
+              "displayName": "estado_nuevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -292,15 +467,24 @@
         2160,
         200
       ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
       "id": "us20-node-10"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"chat_id\": \"={{ $('evaluate_approval').first().json.telefono }}\",\n  \"text\": \"={{ $('evaluate_approval').first().json.message_customer }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('evaluate_approval').first().json.telefono, text: $('evaluate_approval').first().json.message_customer }) }}",
         "options": {}
       },
       "name": "notify_customer",
@@ -318,10 +502,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot{{$env.TELEGRAM_BOT_TOKEN}}/sendMessage",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\n  \"chat_id\": \"={{ $('evaluate_approval').first().json.chat_id }}\",\n  \"text\": \"={{ $('evaluate_approval').first().json.message_pharmacist }}\"\n}",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('evaluate_approval').first().json.chat_id, text: $('evaluate_approval').first().json.message_pharmacist }) }}",
         "options": {}
       },
       "name": "reply_pharmacist",
@@ -338,7 +522,7 @@
     }
   ],
   "connections": {
-    "webhook_aprobacion": {
+    "entrada_router": {
       "main": [
         [
           {
@@ -476,12 +660,13 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "farmaciaUS21aler"
   },
   "pinData": {},
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "versionId": "9b1e2f3a-4c5d-4e6f-8a9b-0c1d2e3f4a5b",
+  "versionId": "c7022485-1291-451a-8fd7-908953f7045b",
   "tags": []
 }

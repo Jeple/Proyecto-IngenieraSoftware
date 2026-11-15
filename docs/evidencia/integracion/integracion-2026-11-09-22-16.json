@@ -1,0 +1,124 @@
+{
+  "fecha": "2026-11-09T22:16:18.825Z",
+  "n8n": "2.44.2",
+  "imagen": "n8nio/n8n:2.44.2",
+  "importacion": {
+    "credencial": "importada",
+    "importados": 9,
+    "publicados": [
+      "farmaciaUS21aler",
+      "farmaciaUS04cons",
+      "farmaciaUS05rese",
+      "farmaciaUS06traz",
+      "farmaciaUS09rect",
+      "farmaciaUS10cron",
+      "farmaciaUS20apro",
+      "farmaciaUS22desp",
+      "farmaciaUS17rout"
+    ],
+    "errores": []
+  },
+  "arranque_ms": 33629,
+  "casos": [
+    {
+      "id": "INT-01",
+      "caso": "Sin encabezado secreto: se descarta",
+      "resultado": "PASA",
+      "detalle": "sin respuesta (correcto)"
+    },
+    {
+      "id": "INT-02",
+      "caso": "Secreto incorrecto: se descarta",
+      "resultado": "PASA",
+      "detalle": "sin respuesta (correcto)"
+    },
+    {
+      "id": "INT-03",
+      "caso": "Saludo: bienvenida con menú y aviso de bot",
+      "resultado": "PASA",
+      "detalle": "282 ms; «Hola, soy el asistente virtual de la Farmacia Comunitaria de Peñalolén (prototip»"
+    },
+    {
+      "id": "INT-04",
+      "caso": "/start: bienvenida",
+      "resultado": "PASA",
+      "detalle": "212 ms; «Hola, soy el asistente virtual de la Farmacia Comunitaria de Peñalolén (prototip»"
+    },
+    {
+      "id": "INT-05",
+      "caso": "Urgencia: deriva a SAMU 131",
+      "resultado": "PASA",
+      "detalle": "192 ms; «Si es una urgencia, llame ahora al SAMU 131 o acuda al SAPU más cercano. Este as»"
+    },
+    {
+      "id": "INT-06",
+      "caso": "Autolesión: línea *4141",
+      "resultado": "PASA",
+      "detalle": "198 ms; «Si está pensando en hacerse daño, no está solo ni sola. Llame ahora a la línea *»"
+    },
+    {
+      "id": "INT-07",
+      "caso": "Pregunta de dosis: sin consejo clínico",
+      "resultado": "PASA",
+      "detalle": "185 ms; «No puedo dar indicaciones sobre dosis, síntomas ni tratamientos. Consulte a su m»"
+    },
+    {
+      "id": "INT-08",
+      "caso": "Estado sin código ni RUT: pide el dato",
+      "resultado": "PASA",
+      "detalle": "217 ms; «Para ver su pedido, escriba su código (por ejemplo: estado #FAR-0001) o su RUT (»"
+    },
+    {
+      "id": "INT-09",
+      "caso": "Sticker (sin texto): explica qué entiende",
+      "resultado": "PASA",
+      "detalle": "217 ms; «Por ahora solo puedo leer mensajes de texto y fotos de recetas. Escriba el nombr»"
+    },
+    {
+      "id": "INT-10",
+      "caso": "Comando de farmacéutico desde chat no autorizado: no llega a US-20",
+      "resultado": "PASA",
+      "detalle": "alerta US-21: «ALERTA n8n: el workflow \"US-06 Trazabilidad por RUT o Codigo\" falló (e»; alertas=1; aviso al vecino=sí"
+    },
+    {
+      "id": "INT-11",
+      "caso": "Consulta con muletillas: el router deriva a US-04 (falla Sheets → alerta US-21)",
+      "resultado": "PASA",
+      "detalle": "alerta US-21: «ALERTA n8n: el workflow \"US-04 Consulta de Stock (Fuzzy Search)\" falló»; alertas=1; aviso al vecino=sí"
+    },
+    {
+      "id": "INT-12",
+      "caso": "Reserva: el router deriva a US-05",
+      "resultado": "PASA",
+      "detalle": "alerta US-21: «ALERTA n8n: el workflow \"US-05 Reserva con Código Transaccional\" falló»; alertas=1; aviso al vecino=sí"
+    },
+    {
+      "id": "INT-13",
+      "caso": "Comando del farmacéutico autorizado: deriva a US-20",
+      "resultado": "PASA",
+      "detalle": "alerta US-21: «ALERTA n8n: el workflow \"US-20 Aprobación farmacéutica de recetas\" fal»; alertas=1; aviso al vecino=sí"
+    },
+    {
+      "id": "INT-14",
+      "caso": "Comando del personal: deriva a US-22",
+      "resultado": "PASA",
+      "detalle": "alerta US-21: «ALERTA n8n: el workflow \"US-22 Despacho marcado por el personal\" falló»; alertas=1; aviso al vecino=sí"
+    }
+  ],
+  "resumen": "14/14 casos pasan",
+  "latencia": {
+    "secuencial": {
+      "n": 30,
+      "recibidas": 30,
+      "p50_ms": 228,
+      "p95_ms": 310,
+      "max_ms": 468
+    },
+    "concurrente_10": {
+      "recibidas": 10,
+      "p50_ms": 1718,
+      "p95_ms": 2788,
+      "max_ms": 2788
+    }
+  }
+}

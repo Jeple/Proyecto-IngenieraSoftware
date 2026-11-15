@@ -37,19 +37,62 @@
   <p>Cada pestaña muestra un flujo automático completo: las cajitas son los pasos y las flechas el camino de la información. Se abre con doble clic, sin instalar n8n.</p>
 </header>
 <main>
-  <div class="leyenda"><span class="lg"><span class="lg-dot" style="background:#0969da"></span>Mensaje</span><span class="lg"><span class="lg-dot" style="background:#57606a"></span>Lógica</span><span class="lg"><span class="lg-dot" style="background:#1a7f37"></span>Planilla</span><span class="lg"><span class="lg-dot" style="background:#0969da"></span>Envío</span><span class="lg"><span class="lg-dot" style="background:#bc4c00"></span>Decisión</span><span class="lg"><span class="lg-dot" style="background:#8250df"></span>Reloj</span><span class="lg"><span class="lg-dot" style="background:#cf222e"></span>Alerta</span><span class="lg"><span class="lg-dot" style="background:#9a6700"></span>Drive</span></div>
-  <nav class="tabs"><button class="tab active" data-target="wf-0">Consulta de stock y precios</button><button class="tab" data-target="wf-1">Reserva y despacho</button><button class="tab" data-target="wf-2">Estado del pedido</button><button class="tab" data-target="wf-3">Recepción de recetas (Telegram)</button><button class="tab" data-target="wf-4">Recepción de recetas (correo)</button><button class="tab" data-target="wf-5">Expiración a 12 horas</button><button class="tab" data-target="wf-6">Aprobación farmacéutica</button><button class="tab" data-target="wf-7">Alertas de error</button><button class="tab" data-target="wf-pwa">PWA del conductor</button></nav>
+  <div class="leyenda"><span class="lg"><span class="lg-dot" style="background:#0969da"></span>Mensaje</span><span class="lg"><span class="lg-dot" style="background:#57606a"></span>Lógica</span><span class="lg"><span class="lg-dot" style="background:#1a7f37"></span>Planilla</span><span class="lg"><span class="lg-dot" style="background:#0969da"></span>Envío</span><span class="lg"><span class="lg-dot" style="background:#bc4c00"></span>Decisión</span><span class="lg"><span class="lg-dot" style="background:#8250df"></span>Reloj</span><span class="lg"><span class="lg-dot" style="background:#cf222e"></span>Alerta</span><span class="lg"><span class="lg-dot" style="background:#9a6700"></span>Drive</span><span class="lg"><span class="lg-dot" style="background:#8250df"></span>Deriva</span></div>
+  <nav class="tabs"><button class="tab active" data-target="wf-0">Router de Telegram (entrada única)</button><button class="tab" data-target="wf-1">Consulta de stock y precios</button><button class="tab" data-target="wf-2">Reserva y despacho</button><button class="tab" data-target="wf-3">Estado del pedido</button><button class="tab" data-target="wf-4">Recepción de recetas (Telegram)</button><button class="tab" data-target="wf-5">Recepción de recetas (correo)</button><button class="tab" data-target="wf-6">Expiración a 12 horas</button><button class="tab" data-target="wf-7">Aprobación farmacéutica</button><button class="tab" data-target="wf-8">Despacho marcado por el personal</button><button class="tab" data-target="wf-9">Alertas de error</button><button class="tab" data-target="wf-pwa">PWA del conductor</button></nav>
 <section class="wf active" id="wf-0">
+  <h2>Router de Telegram (entrada única) <span class="file">US-17-router-telegram.json</span></h2>
+  <p class="resumen">Recibe todos los mensajes del bot, valida el secreto, responde las urgencias y deriva cada mensaje al flujo que corresponde.</p>
+  <div class="diagram-wrap"><svg class="diagram" viewBox="-46 -46 1922 1158" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Router de Telegram (entrada única)">
+<defs><marker id="arrow-0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 210 333 C 256 333, 174 333, 220 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 430 333 C 476 333, 394 333, 440 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 650 320 C 696 320, 614 153, 660 153" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 650 346 C 696 346, 1054 333, 1100 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 870 153 C 916 153, 834 153, 880 153" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1090 153 C 1136 153, 1054 333, 1100 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 320 C 1356 320, 1314 33, 1360 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 346 C 1356 346, 1314 173, 1360 173" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 333 C 1356 333, 1314 313, 1360 313" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 333 C 1356 333, 1314 453, 1360 453" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 333 C 1356 333, 1314 593, 1360 593" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 333 C 1356 333, 1314 733, 1360 733" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 333 C 1356 333, 1314 873, 1360 873" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1310 333 C 1356 333, 1314 1033, 1360 1033" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 46 C 1616 46, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 186 C 1616 186, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 326 C 1616 326, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 466 C 1616 466, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 606 C 1616 606, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 746 C 1616 746, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<path d="M 1570 886 C 1616 886, 1574 393, 1620 393" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
+<g><rect x="0" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">MENSAJE</text><text x="12" y="338" font-size="13" font-weight="600" fill="#1c2126">Recibe el mensaje</text><text x="12" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">webhook_telegram</text></g>
+<g><rect x="220" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="232" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="232" y="338" font-size="13" font-weight="600" fill="#1c2126">Entiende la intención</text><text x="232" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">clasificar</text></g>
+<g><rect x="440" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#bc4c00" stroke-width="1.6" /><text x="452" y="318" font-size="10" fill="#bc4c00" letter-spacing="0.6">DECISIÓN</text><text x="452" y="338" font-size="13" font-weight="600" fill="#1c2126">¿Es ambiguo?</text><text x="452" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">si_ambiguo_y_llm</text></g>
+<g><rect x="660" y="120" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="672" y="138" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="672" y="158" font-size="13" font-weight="600" fill="#1c2126">Pide una etiqueta a Gemini</text><text x="672" y="175" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">gemini_clasificar</text></g>
+<g><rect x="880" y="120" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="892" y="138" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="892" y="158" font-size="13" font-weight="600" fill="#1c2126">Aplica la etiqueta</text><text x="892" y="175" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">aplicar_llm</text></g>
+<g><rect x="1100" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#bc4c00" stroke-width="1.6" /><text x="1112" y="318" font-size="10" fill="#bc4c00" letter-spacing="0.6">DECISIÓN</text><text x="1112" y="338" font-size="13" font-weight="600" fill="#1c2126">¿A qué flujo va?</text><text x="1112" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">derivar</text></g>
+<g><rect x="1360" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="18" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="38" font-size="13" font-weight="600" fill="#1c2126">Consulta de stock</text><text x="1372" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_consulta</text></g>
+<g><rect x="1360" y="140" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="158" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="178" font-size="13" font-weight="600" fill="#1c2126">Reserva</text><text x="1372" y="195" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_reserva</text></g>
+<g><rect x="1360" y="280" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="298" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="318" font-size="13" font-weight="600" fill="#1c2126">Estado del pedido</text><text x="1372" y="335" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_estado</text></g>
+<g><rect x="1360" y="420" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="438" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="458" font-size="13" font-weight="600" fill="#1c2126">Recepción de receta</text><text x="1372" y="475" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_receta</text></g>
+<g><rect x="1360" y="560" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="578" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="598" font-size="13" font-weight="600" fill="#1c2126">Aprobación farmacéutica</text><text x="1372" y="615" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_aprobacion</text></g>
+<g><rect x="1360" y="700" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="718" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="738" font-size="13" font-weight="600" fill="#1c2126">Despacho</text><text x="1372" y="755" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_despacho</text></g>
+<g><rect x="1360" y="840" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="1372" y="858" font-size="10" fill="#8250df" letter-spacing="0.6">DERIVA</text><text x="1372" y="878" font-size="13" font-weight="600" fill="#1c2126">Revisión de vencidos</text><text x="1372" y="895" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">ir_expiracion</text></g>
+<g><rect x="1360" y="1000" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="1372" y="1018" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="1372" y="1038" font-size="13" font-weight="600" fill="#1c2126">Responde por Telegram</text><text x="1372" y="1055" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">responder</text></g>
+<g><rect x="1620" y="360" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="1632" y="378" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="1632" y="398" font-size="13" font-weight="600" fill="#1c2126">Avisa que hubo un problema</text><text x="1632" y="415" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">responder_falla</text></g>
+</svg></div>
+</section>
+<section class="wf" id="wf-1">
   <h2>Consulta de stock y precios <span class="file">US-04-consulta-stock.json</span></h2>
   <p class="resumen">El vecino pregunta por un medicamento (aunque escriba con errores) y recibe disponibilidad y precio reales, sin datos inventados.</p>
   <div class="diagram-wrap"><svg class="diagram" viewBox="-46 254 1502 158" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Consulta de stock y precios">
-<defs><marker id="arrow-0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 450 333 C 496 333, 434 333, 480 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
-<path d="M 690 333 C 736 333, 674 333, 720 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
-<path d="M 930 333 C 976 333, 914 333, 960 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
-<path d="M 1170 333 C 1216 333, 1154 333, 1200 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
-<path d="M 210 333 C 256 333, 194 333, 240 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-0)" />
-<g><rect x="0" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">MENSAJE</text><text x="12" y="338" font-size="13" font-weight="600" fill="#1c2126">Recibe el mensaje</text><text x="12" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">webhook_telegram</text></g>
+<defs><marker id="arrow-1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 450 333 C 496 333, 434 333, 480 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
+<path d="M 690 333 C 736 333, 674 333, 720 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
+<path d="M 930 333 C 976 333, 914 333, 960 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
+<path d="M 1170 333 C 1216 333, 1154 333, 1200 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
+<path d="M 210 333 C 256 333, 194 333, 240 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
+<g><rect x="0" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="12" y="338" font-size="13" font-weight="600" fill="#1c2126">Recibe del router</text><text x="12" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_router</text></g>
 <g><rect x="240" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="252" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="252" y="338" font-size="13" font-weight="600" fill="#1c2126">Entiende el mensaje</text><text x="252" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_incoming</text></g>
 <g><rect x="480" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="492" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="492" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee el catálogo</text><text x="492" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_catalogo</text></g>
 <g><rect x="720" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="732" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="732" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee el stock</text><text x="732" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_inventario</text></g>
@@ -57,26 +100,26 @@
 <g><rect x="1200" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="1212" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="1212" y="338" font-size="13" font-weight="600" fill="#1c2126">Responde por Telegram</text><text x="1212" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_telegram</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-1">
+<section class="wf" id="wf-2">
   <h2>Reserva y despacho <span class="file">US-05-reserva.json</span></h2>
   <p class="resumen">Toma el pedido con RUT y dirección, descuenta el stock al instante, crea el despacho y evita duplicados.</p>
   <div class="diagram-wrap"><svg class="diagram" viewBox="-46 -246 3182 454" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Reserva y despacho">
-<defs><marker id="arrow-1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 210 33 C 256 33, 194 33, 240 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 450 33 C 496 33, 434 33, 480 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 690 33 C 736 33, 674 33, 720 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 930 33 C 976 33, 914 33, 960 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 1170 33 C 1216 33, 1154 33, 1200 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 1410 33 C 1456 33, 1394 33, 1440 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 1650 20 C 1696 20, 1634 -167, 1680 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 1650 46 C 1696 46, 2594 33, 2640 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 1890 -167 C 1936 -167, 1874 -167, 1920 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 2130 -167 C 2176 -167, 2114 -167, 2160 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 2370 -167 C 2416 -167, 1914 129, 1960 129" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 2610 -167 C 2656 -167, 2594 33, 2640 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 2850 33 C 2896 33, 2834 33, 2880 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<path d="M 2170 129 C 2216 129, 2354 -167, 2400 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-1)" />
-<g><rect x="0" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="18" font-size="10" fill="#0969da" letter-spacing="0.6">MENSAJE</text><text x="12" y="38" font-size="13" font-weight="600" fill="#1c2126">Recibe el mensaje</text><text x="12" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">webhook_reserva</text></g>
+<defs><marker id="arrow-2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 210 33 C 256 33, 194 33, 240 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 450 33 C 496 33, 434 33, 480 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 690 33 C 736 33, 674 33, 720 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 930 33 C 976 33, 914 33, 960 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 1170 33 C 1216 33, 1154 33, 1200 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 1410 33 C 1456 33, 1394 33, 1440 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 1650 20 C 1696 20, 1634 -167, 1680 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 1650 46 C 1696 46, 2594 33, 2640 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 1890 -167 C 1936 -167, 1874 -167, 1920 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 2130 -167 C 2176 -167, 2114 -167, 2160 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 2370 -167 C 2416 -167, 1914 129, 1960 129" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 2610 -167 C 2656 -167, 2594 33, 2640 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 2850 33 C 2896 33, 2834 33, 2880 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<path d="M 2170 129 C 2216 129, 2354 -167, 2400 -167" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
+<g><rect x="0" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="18" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="12" y="38" font-size="13" font-weight="600" fill="#1c2126">Recibe del router</text><text x="12" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_router</text></g>
 <g><rect x="240" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="252" y="18" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="252" y="38" font-size="13" font-weight="600" fill="#1c2126">Entiende el pedido</text><text x="252" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_reservation</text></g>
 <g><rect x="480" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="492" y="18" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="492" y="38" font-size="13" font-weight="600" fill="#1c2126">Lee el catálogo</text><text x="492" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_catalogo</text></g>
 <g><rect x="720" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="732" y="18" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="732" y="38" font-size="13" font-weight="600" fill="#1c2126">Lee el stock</text><text x="732" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_inventario</text></g>
@@ -92,17 +135,17 @@
 <g><rect x="2880" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="2892" y="18" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="2892" y="38" font-size="13" font-weight="600" fill="#1c2126">Responde por Telegram</text><text x="2892" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_telegram</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-2">
+<section class="wf" id="wf-3">
   <h2>Estado del pedido <span class="file">US-06-trazabilidad.json</span></h2>
   <p class="resumen">El titular consulta por código o RUT; cualquier otro chat recibe el mismo mensaje que un pedido inexistente.</p>
   <div class="diagram-wrap"><svg class="diagram" viewBox="-46 -46 1502 158" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Estado del pedido">
-<defs><marker id="arrow-2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 210 33 C 256 33, 194 33, 240 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
-<path d="M 450 33 C 496 33, 434 33, 480 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
-<path d="M 690 33 C 736 33, 674 33, 720 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
-<path d="M 930 33 C 976 33, 914 33, 960 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
-<path d="M 1170 33 C 1216 33, 1154 33, 1200 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-2)" />
-<g><rect x="0" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="18" font-size="10" fill="#0969da" letter-spacing="0.6">MENSAJE</text><text x="12" y="38" font-size="13" font-weight="600" fill="#1c2126">Recibe la consulta</text><text x="12" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">webhook_trazabilidad</text></g>
+<defs><marker id="arrow-3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 210 33 C 256 33, 194 33, 240 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
+<path d="M 450 33 C 496 33, 434 33, 480 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
+<path d="M 690 33 C 736 33, 674 33, 720 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
+<path d="M 930 33 C 976 33, 914 33, 960 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
+<path d="M 1170 33 C 1216 33, 1154 33, 1200 33" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
+<g><rect x="0" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="18" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="12" y="38" font-size="13" font-weight="600" fill="#1c2126">Recibe del router</text><text x="12" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_router</text></g>
 <g><rect x="240" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="252" y="18" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="252" y="38" font-size="13" font-weight="600" fill="#1c2126">Entiende la consulta</text><text x="252" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_tracking_request</text></g>
 <g><rect x="480" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="492" y="18" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="492" y="38" font-size="13" font-weight="600" fill="#1c2126">Lee los pedidos</text><text x="492" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_ordenes</text></g>
 <g><rect x="720" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="732" y="18" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="732" y="38" font-size="13" font-weight="600" fill="#1c2126">Lee los despachos</text><text x="732" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_despachos</text></g>
@@ -110,24 +153,26 @@
 <g><rect x="1200" y="0" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="1212" y="18" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="1212" y="38" font-size="13" font-weight="600" fill="#1c2126">Responde por Telegram</text><text x="1212" y="55" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_telegram</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-3">
+<section class="wf" id="wf-4">
   <h2>Recepción de recetas (Telegram) <span class="file">US-09-recetas-telegram.json</span></h2>
   <p class="resumen">Recibe la foto de la receta desde el chat titular, la guarda en Drive y la asocia al pedido.</p>
-  <div class="diagram-wrap"><svg class="diagram" viewBox="214 134 2502 498" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Recepción de recetas (Telegram)">
-<defs><marker id="arrow-3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 470 373 C 516 373, 434 373, 480 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 690 373 C 736 373, 654 373, 700 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 910 373 C 956 373, 874 373, 920 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 1130 373 C 1176 373, 1094 373, 1140 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 1350 360 C 1396 360, 1314 213, 1360 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 1350 386 C 1396 386, 1314 553, 1360 553" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 1570 213 C 1616 213, 1534 213, 1580 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 1790 213 C 1836 213, 1754 213, 1800 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 2010 213 C 2056 213, 1974 213, 2020 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 2230 213 C 2276 213, 2194 213, 2240 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 2450 213 C 2496 213, 2414 213, 2460 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<path d="M 2670 213 C 2716 213, 1314 553, 1360 553" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-3)" />
-<g><rect x="260" y="340" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="272" y="358" font-size="10" fill="#0969da" letter-spacing="0.6">MENSAJE</text><text x="272" y="378" font-size="13" font-weight="600" fill="#1c2126">Recibe la foto</text><text x="272" y="395" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">webhook_recetas</text></g>
+  <div class="diagram-wrap"><svg class="diagram" viewBox="214 -6 2942 638" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Recepción de recetas (Telegram)">
+<defs><marker id="arrow-4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 470 373 C 516 373, 434 373, 480 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 690 373 C 736 373, 654 373, 700 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 910 373 C 956 373, 874 373, 920 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 1130 373 C 1176 373, 1094 373, 1140 373" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 1350 360 C 1396 360, 1314 213, 1360 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 1350 386 C 1396 386, 1314 553, 1360 553" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 1570 213 C 1616 213, 1534 213, 1580 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 1790 213 C 1836 213, 1754 213, 1800 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 2010 213 C 2056 213, 1974 213, 2020 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 2230 213 C 2276 213, 2194 213, 2240 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 2450 213 C 2496 213, 2414 213, 2460 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 2670 213 C 2716 213, 1314 553, 1360 553" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 2670 213 C 2716 213, 2634 73, 2680 73" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<path d="M 2890 73 C 2936 73, 2854 73, 2900 73" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<g><rect x="260" y="340" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="272" y="358" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="272" y="378" font-size="13" font-weight="600" fill="#1c2126">Recibe del router</text><text x="272" y="395" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_router</text></g>
 <g><rect x="480" y="340" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="492" y="358" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="492" y="378" font-size="13" font-weight="600" fill="#1c2126">Entiende el mensaje</text><text x="492" y="395" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_recipe_message</text></g>
 <g><rect x="700" y="340" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="712" y="358" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="712" y="378" font-size="13" font-weight="600" fill="#1c2126">Lee los pedidos</text><text x="712" y="395" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_ordenes</text></g>
 <g><rect x="920" y="340" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="932" y="358" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="932" y="378" font-size="13" font-weight="600" fill="#1c2126">Decide qué hacer</text><text x="932" y="395" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">build_action</text></g>
@@ -139,23 +184,25 @@
 <g><rect x="2240" y="180" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="2252" y="198" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="2252" y="218" font-size="13" font-weight="600" fill="#1c2126">Registra el movimiento</text><text x="2252" y="235" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">append_bitacora</text></g>
 <g><rect x="2460" y="180" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="2472" y="198" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="2472" y="218" font-size="13" font-weight="600" fill="#1c2126">Confirma el término</text><text x="2472" y="235" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">finalize_success</text></g>
 <g><rect x="1360" y="520" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="1372" y="538" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="1372" y="558" font-size="13" font-weight="600" fill="#1c2126">Responde por Telegram</text><text x="1372" y="575" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_telegram</text></g>
+<g><rect x="2680" y="40" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="2692" y="58" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="2692" y="78" font-size="13" font-weight="600" fill="#1c2126">Prepara el aviso</text><text x="2692" y="95" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">aviso_farmaceutico</text></g>
+<g><rect x="2900" y="40" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="2912" y="58" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="2912" y="78" font-size="13" font-weight="600" fill="#1c2126">Avisa al farmacéutico</text><text x="2912" y="95" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">notify_pharmacist</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-4">
+<section class="wf" id="wf-5">
   <h2>Recepción de recetas (correo) <span class="file">US-09-recetas-email.json</span></h2>
   <p class="resumen">Misma lógica por correo; queda postergado a una versión posterior (no se usa en la demo).</p>
   <div class="diagram-wrap"><svg class="diagram" viewBox="-46 134 2462 278" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Recepción de recetas (correo)">
-<defs><marker id="arrow-4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 210 333 C 256 333, 194 333, 240 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 450 333 C 496 333, 434 333, 480 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 690 333 C 736 333, 674 333, 720 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 930 333 C 976 333, 914 333, 960 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 1170 320 C 1216 320, 1154 213, 1200 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 1170 346 C 1216 346, 2114 333, 2160 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 1410 213 C 1456 213, 1394 213, 1440 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 1650 213 C 1696 213, 1634 213, 1680 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 1890 213 C 1936 213, 1874 213, 1920 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
-<path d="M 2130 213 C 2176 213, 2114 333, 2160 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-4)" />
+<defs><marker id="arrow-5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 210 333 C 256 333, 194 333, 240 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 450 333 C 496 333, 434 333, 480 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 690 333 C 736 333, 674 333, 720 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 930 333 C 976 333, 914 333, 960 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 1170 320 C 1216 320, 1154 213, 1200 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 1170 346 C 1216 346, 2114 333, 2160 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 1410 213 C 1456 213, 1394 213, 1440 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 1650 213 C 1696 213, 1634 213, 1680 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 1890 213 C 1936 213, 1874 213, 1920 213" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+<path d="M 2130 213 C 2176 213, 2114 333, 2160 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
 <g><rect x="0" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#6e7781" stroke-width="1.6" /><text x="12" y="318" font-size="10" fill="#6e7781" letter-spacing="0.6">PASO</text><text x="12" y="338" font-size="13" font-weight="600" fill="#1c2126">Revisa el correo</text><text x="12" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">imap_trigger</text></g>
 <g><rect x="240" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="252" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="252" y="338" font-size="13" font-weight="600" fill="#1c2126">Entiende el correo</text><text x="252" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_recipe_email</text></g>
 <g><rect x="480" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="492" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="492" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee los pedidos</text><text x="492" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_ordenes</text></g>
@@ -168,25 +215,27 @@
 <g><rect x="2160" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#6e7781" stroke-width="1.6" /><text x="2172" y="318" font-size="10" fill="#6e7781" letter-spacing="0.6">PASO</text><text x="2172" y="338" font-size="13" font-weight="600" fill="#1c2126">Responde por correo</text><text x="2172" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_email</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-5">
+<section class="wf" id="wf-6">
   <h2>Expiración a 12 horas <span class="file">US-10-cron-expiracion.json</span></h2>
   <p class="resumen">Cada hora cancela los pedidos sin receta vencidos, libera el stock y avisa al vecino.</p>
-  <div class="diagram-wrap"><svg class="diagram" viewBox="-46 254 3162 158" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Expiración a 12 horas">
-<defs><marker id="arrow-5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 210 333 C 256 333, 174 333, 220 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 430 333 C 476 333, 394 333, 440 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 650 333 C 696 333, 614 333, 660 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 870 333 C 916 333, 834 333, 880 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 1090 333 C 1136 333, 1054 333, 1100 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 1310 333 C 1356 333, 1274 333, 1320 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 1530 333 C 1576 333, 1494 333, 1540 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 1750 333 C 1796 333, 1714 333, 1760 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 1970 333 C 2016 333, 1934 333, 1980 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 2190 333 C 2236 333, 2154 333, 2200 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 2410 333 C 2456 333, 2374 333, 2420 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 2630 333 C 2676 333, 2594 333, 2640 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
-<path d="M 2850 333 C 2896 333, 2814 333, 2860 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-5)" />
+  <div class="diagram-wrap"><svg class="diagram" viewBox="-46 254 3162 358" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Expiración a 12 horas">
+<defs><marker id="arrow-6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 210 333 C 256 333, 174 333, 220 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 430 333 C 476 333, 394 333, 440 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 650 333 C 696 333, 614 333, 660 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 870 333 C 916 333, 834 333, 880 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 1090 333 C 1136 333, 1054 333, 1100 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 1310 333 C 1356 333, 1274 333, 1320 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 1530 333 C 1576 333, 1494 333, 1540 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 1750 333 C 1796 333, 1714 333, 1760 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 1970 333 C 2016 333, 1934 333, 1980 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 2190 333 C 2236 333, 2154 333, 2200 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 2410 333 C 2456 333, 2374 333, 2420 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 2630 333 C 2676 333, 2594 333, 2640 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 2850 333 C 2896 333, 2814 333, 2860 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
+<path d="M 210 533 C 256 533, 174 333, 220 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
 <g><rect x="0" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#8250df" stroke-width="1.6" /><text x="12" y="318" font-size="10" fill="#8250df" letter-spacing="0.6">RELOJ</text><text x="12" y="338" font-size="13" font-weight="600" fill="#1c2126">Se activa cada hora</text><text x="12" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">cron_hourly</text></g>
+<g><rect x="0" y="500" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="518" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="12" y="538" font-size="13" font-weight="600" fill="#1c2126">Ejecución a demanda</text><text x="12" y="555" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_manual</text></g>
 <g><rect x="220" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="232" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="232" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee los pedidos</text><text x="232" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_ordenes</text></g>
 <g><rect x="440" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="452" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="452" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee el stock</text><text x="452" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_inventario</text></g>
 <g><rect x="660" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="672" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="672" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee el catálogo</text><text x="672" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_catalogo</text></g>
@@ -202,25 +251,25 @@
 <g><rect x="2860" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="2872" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="2872" y="338" font-size="13" font-weight="600" fill="#1c2126">Responde por Telegram</text><text x="2872" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_telegram</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-6">
+<section class="wf" id="wf-7">
   <h2>Aprobación farmacéutica <span class="file">US-20-aprobacion-recetas.json</span></h2>
   <p class="resumen">El químico farmacéutico aprueba o rechaza por comando; nada pasa a preparación sin su aprobación y el rechazo libera el stock.</p>
   <div class="diagram-wrap"><svg class="diagram" viewBox="134 54 2722 358" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Aprobación farmacéutica">
-<defs><marker id="arrow-6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 390 333 C 436 333, 354 333, 400 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 610 333 C 656 333, 574 333, 620 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 830 333 C 876 333, 794 333, 840 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1050 333 C 1096 333, 1014 333, 1060 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1270 333 C 1316 333, 1234 333, 1280 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1490 320 C 1536 320, 1454 233, 1500 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1490 346 C 1536 346, 2554 233, 2600 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1710 233 C 1756 233, 1674 233, 1720 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1930 220 C 1976 220, 1894 133, 1940 133" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 1930 246 C 1976 246, 2114 233, 2160 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 2150 133 C 2196 133, 2114 233, 2160 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 2370 233 C 2416 233, 2334 233, 2380 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<path d="M 2590 233 C 2636 233, 2554 233, 2600 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-6)" />
-<g><rect x="180" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="192" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">MENSAJE</text><text x="192" y="338" font-size="13" font-weight="600" fill="#1c2126">Recibe el comando</text><text x="192" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">webhook_aprobacion</text></g>
+<defs><marker id="arrow-7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 390 333 C 436 333, 354 333, 400 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 610 333 C 656 333, 574 333, 620 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 830 333 C 876 333, 794 333, 840 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1050 333 C 1096 333, 1014 333, 1060 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1270 333 C 1316 333, 1234 333, 1280 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1490 320 C 1536 320, 1454 233, 1500 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1490 346 C 1536 346, 2554 233, 2600 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1710 233 C 1756 233, 1674 233, 1720 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1930 220 C 1976 220, 1894 133, 1940 133" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 1930 246 C 1976 246, 2114 233, 2160 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 2150 133 C 2196 133, 2114 233, 2160 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 2370 233 C 2416 233, 2334 233, 2380 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<path d="M 2590 233 C 2636 233, 2554 233, 2600 233" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<g><rect x="180" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="192" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="192" y="338" font-size="13" font-weight="600" fill="#1c2126">Recibe del router</text><text x="192" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_router</text></g>
 <g><rect x="400" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="412" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="412" y="338" font-size="13" font-weight="600" fill="#1c2126">Entiende el comando</text><text x="412" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_pharmacist_command</text></g>
 <g><rect x="620" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="632" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="632" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee los pedidos</text><text x="632" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_ordenes</text></g>
 <g><rect x="840" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="852" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="852" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee el stock</text><text x="852" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_inventario</text></g>
@@ -234,13 +283,47 @@
 <g><rect x="2600" y="200" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="2612" y="218" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="2612" y="238" font-size="13" font-weight="600" fill="#1c2126">Responde al farmacéutico</text><text x="2612" y="255" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">reply_pharmacist</text></g>
 </svg></div>
 </section>
-<section class="wf" id="wf-7">
+<section class="wf" id="wf-8">
+  <h2>Despacho marcado por el personal <span class="file">US-22-despacho-personal.json</span></h2>
+  <p class="resumen">El personal marca «en ruta» y «entregado» por comando; el vecino recibe el aviso y al entregar se descuenta el stock una sola vez.</p>
+  <div class="diagram-wrap"><svg class="diagram" viewBox="-46 14 2942 398" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Despacho marcado por el personal">
+<defs><marker id="arrow-8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 210 333 C 256 333, 174 333, 220 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 430 333 C 476 333, 394 333, 440 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 650 333 C 696 333, 614 333, 660 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 870 333 C 916 333, 834 333, 880 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1090 333 C 1136 333, 1054 333, 1100 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1310 320 C 1356 320, 1274 193, 1320 193" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1310 346 C 1356 346, 2594 333, 2640 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1530 193 C 1576 193, 1494 193, 1540 193" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1750 193 C 1796 193, 1714 193, 1760 193" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1970 180 C 2016 180, 1934 93, 1980 93" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 1970 206 C 2016 206, 2154 193, 2200 193" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 2190 93 C 2236 93, 2154 193, 2200 193" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 2410 193 C 2456 193, 2374 193, 2420 193" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<path d="M 2630 193 C 2676 193, 2594 333, 2640 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-8)" />
+<g><rect x="0" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="12" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENTRADA</text><text x="12" y="338" font-size="13" font-weight="600" fill="#1c2126">Recibe del router</text><text x="12" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">entrada_router</text></g>
+<g><rect x="220" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="232" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="232" y="338" font-size="13" font-weight="600" fill="#1c2126">Entiende el comando</text><text x="232" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">parse_staff_command</text></g>
+<g><rect x="440" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="452" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="452" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee los pedidos</text><text x="452" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_ordenes</text></g>
+<g><rect x="660" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="672" y="318" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="672" y="338" font-size="13" font-weight="600" fill="#1c2126">Lee el stock</text><text x="672" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">read_inventario</text></g>
+<g><rect x="880" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="892" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="892" y="338" font-size="13" font-weight="600" fill="#1c2126">Valida la transición</text><text x="892" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">evaluate_dispatch</text></g>
+<g><rect x="1100" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#bc4c00" stroke-width="1.6" /><text x="1112" y="318" font-size="10" fill="#bc4c00" letter-spacing="0.6">DECISIÓN</text><text x="1112" y="338" font-size="13" font-weight="600" fill="#1c2126">¿Es válido?</text><text x="1112" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">if_commit</text></g>
+<g><rect x="1320" y="160" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="1332" y="178" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="1332" y="198" font-size="13" font-weight="600" fill="#1c2126">Actualiza el pedido</text><text x="1332" y="215" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">update_orden</text></g>
+<g><rect x="1540" y="160" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="1552" y="178" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="1552" y="198" font-size="13" font-weight="600" fill="#1c2126">Actualiza el despacho</text><text x="1552" y="215" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">update_despacho</text></g>
+<g><rect x="1760" y="160" width="210" height="66" rx="10" fill="#ffffff" stroke="#bc4c00" stroke-width="1.6" /><text x="1772" y="178" font-size="10" fill="#bc4c00" letter-spacing="0.6">DECISIÓN</text><text x="1772" y="198" font-size="13" font-weight="600" fill="#1c2126">¿Es entrega?</text><text x="1772" y="215" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">if_entrega</text></g>
+<g><rect x="1980" y="60" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="1992" y="78" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="1992" y="98" font-size="13" font-weight="600" fill="#1c2126">Actualiza el stock</text><text x="1992" y="115" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">update_inventario</text></g>
+<g><rect x="2200" y="160" width="210" height="66" rx="10" fill="#ffffff" stroke="#1a7f37" stroke-width="1.6" /><text x="2212" y="178" font-size="10" fill="#1a7f37" letter-spacing="0.6">PLANILLA</text><text x="2212" y="198" font-size="13" font-weight="600" fill="#1c2126">Registra el movimiento</text><text x="2212" y="215" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">append_bitacora</text></g>
+<g><rect x="2420" y="160" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="2432" y="178" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="2432" y="198" font-size="13" font-weight="600" fill="#1c2126">Avisa al cliente</text><text x="2432" y="215" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">notify_customer</text></g>
+<g><rect x="2640" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="2652" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="2652" y="338" font-size="13" font-weight="600" fill="#1c2126">Responde al personal</text><text x="2652" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">reply_staff</text></g>
+</svg></div>
+</section>
+<section class="wf" id="wf-9">
   <h2>Alertas de error <span class="file">US-21-alertas-errores.json</span></h2>
   <p class="resumen">Si un flujo falla, avisa al equipo con el workflow, el nodo y el enlace a la ejecución.</p>
   <div class="diagram-wrap"><svg class="diagram" viewBox="154 254 742 158" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama de Alertas de error">
-<defs><marker id="arrow-7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
-<path d="M 410 333 C 456 333, 374 333, 420 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
-<path d="M 630 333 C 676 333, 594 333, 640 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-7)" />
+<defs><marker id="arrow-9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa4ac" /></marker></defs>
+<path d="M 410 333 C 456 333, 374 333, 420 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-9)" />
+<path d="M 630 333 C 676 333, 594 333, 640 333" fill="none" stroke="#9aa4ac" stroke-width="1.8" marker-end="url(#arrow-9)" />
 <g><rect x="200" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#cf222e" stroke-width="1.6" /><text x="212" y="318" font-size="10" fill="#cf222e" letter-spacing="0.6">ALERTA</text><text x="212" y="338" font-size="13" font-weight="600" fill="#1c2126">Se activa con el error</text><text x="212" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">error_trigger</text></g>
 <g><rect x="420" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#57606a" stroke-width="1.6" /><text x="432" y="318" font-size="10" fill="#57606a" letter-spacing="0.6">LÓGICA</text><text x="432" y="338" font-size="13" font-weight="600" fill="#1c2126">Arma la alerta</text><text x="432" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">build_alert</text></g>
 <g><rect x="640" y="300" width="210" height="66" rx="10" fill="#ffffff" stroke="#0969da" stroke-width="1.6" /><text x="652" y="318" font-size="10" fill="#0969da" letter-spacing="0.6">ENVÍO</text><text x="652" y="338" font-size="13" font-weight="600" fill="#1c2126">Avisa al equipo</text><text x="652" y="355" font-size="9.5" fill="#98a2aa" font-family="Consolas, Menlo, monospace">send_alert</text></g>
@@ -248,7 +331,7 @@
 </section>
 <section class="wf" id="wf-pwa">
   <h2>PWA del conductor <span class="file">pwa/ (US-11)</span></h2>
-  <p class="resumen">La vista del conductor corre en el navegador del teléfono: muestra los despachos y los tiempos estimados de viaje. Hoy funciona en modo demostración; su conexión definitiva con los flujos está planificada.</p>
+  <p class="resumen">Prototipo exploratorio en modo demostración, fuera del alcance firmado de este semestre. El avance del despacho lo marca el personal por Telegram (US-22).</p>
   <div class="pwa-note">Esta parte no es un flujo de n8n: es una aplicación web (PWA) que se abre en el teléfono.</div>
 </section>
 </main>

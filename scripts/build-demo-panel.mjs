@@ -73,7 +73,7 @@ const EVENTO_META = {
 };
 
 // Constantes de avance: actualizar al regenerar cuando cambien.
-const SUITES_VERDE = 266;
+const SUITES_VERDE = 413;
 
 export function buildPanelData({ medicamentos, pedidos, log }) {
   const totalClp = pedidos.reduce((acc, p) => acc + Math.round(Number(p.Total_CLP) || 0), 0);
@@ -260,7 +260,7 @@ export function renderHtml(data) {
 '    <p>Los números de arriba salen de los datos sintéticos versionados en el repositorio: son los mismos con los que se prueban los flujos, para que nadie vea información de pacientes reales.</p>\n' +
 '    <p>En operación, esta información vive en la planilla conectada al bot: el stock baja al reservar, cada receta espera la validación del químico farmacéutico y todo movimiento queda auditado.</p>\n' +
 '    <p>Para ver el sistema por dentro: abrir <b>presentacion/mapa-workflows.html</b> — cada flujo dibujado paso a paso, caja por caja. ¿La app real de n8n? Instrucciones en <b>presentacion/n8n-demo/LEEME.md</b> (Docker o Node).</p>\n' +
-'    <p>Avance del proyecto: 8 flujos de n8n y la PWA del conductor, con <b>' + k.pruebas + ' pruebas automáticas</b> en verde en cada cambio. En cierre: validación final en el entorno real y documentos de entrega.</p>\n' +
+'    <p>Avance del proyecto: 9 flujos de n8n con un router de entrada única, con <b>' + k.pruebas + ' pruebas automáticas</b> en verde en cada cambio. En cierre: prueba de punta a punta en el entorno real y documentos de la Entrega 2.</p>\n' +
 '  </section>\n' +
 '</main>\n' +
 '<footer>Datos sintéticos generados desde data/seed · Proyecto Ingeniería de Software · Grupo 10</footer>\n' +

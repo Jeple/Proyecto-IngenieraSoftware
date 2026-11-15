@@ -1,0 +1,39 @@
+@startuml secuencia-despacho
+!include estilo.iuml
+title Secuencia · Despacho marcado por el personal: en ruta y entregado (US-22)
+
+actor "Personal de\nla farmacia" as P
+actor Vecino
+participant "Telegram" as TG
+participant "Router\nUS-17" as R
+participant "Despacho\nUS-22" as D
+database "Google Sheets" as S
+
+P -> TG : «en ruta FAR-0001»
+TG -> R : webhook (secreto)
+R -> R : chat en TELEGRAM_STAFF_CHAT_IDS\n(o farmacéuticos si está vacía)
+R -> D : Execute Workflow (intent = despacho)
+activate D
+D -> S : leer ordenes e inventario
+D -> D : evaluate_dispatch(): EN_PREPARACION → EN_RUTA
+D -> S : ordenes.estado = EN_RUTA
+D -> S : despachos.estado_ruta = EN_RUTA, fecha_marcado
+D -> S : bitacora DESPACHO_EN_RUTA (actor personal:<chat_id>)
+D -> TG : al vecino: «Su pedido #FAR-0001 va en camino»
+D -> TG : al personal: «Listo: #FAR-0001 pasa a EN_RUTA»
+deactivate D
+TG -> Vecino : aviso
+
+P -> TG : «entregado FAR-0001»
+TG -> R : webhook
+R -> D : Execute Workflow
+activate D
+D -> D : EN_RUTA → ENTREGADO
+D -> S : ordenes.estado = ENTREGADO; despachos = ENTREGADO
+D -> S : inventario: stock_real − cantidad y\nstock_reservado − cantidad (una sola vez)
+D -> S : bitacora PEDIDO_ENTREGADO
+D -> TG : aviso al vecino y confirmación al personal
+deactivate D
+note over D : Repetir «entregado» no vuelve a descontar:\nel estado de origen (EN_RUTA) es la guarda.
+note right of P : Sin app del conductor ni hora estimada:\nla PWA con OSRM quedó fuera del alcance firmado.
+@enduml

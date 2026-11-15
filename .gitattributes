@@ -1,0 +1,14 @@
+# Saltos de línea normalizados a LF en el repositorio y en la copia de trabajo.
+# Evita que Windows (core.autocrlf=true) convierta a CRLF los HTML generados y
+# los JSON de workflows: las pruebas de consistencia (test-mapa, test-panel)
+# comparan byte a byte y fallaban en Windows solo por los saltos de línea.
+* text=auto eol=lf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary

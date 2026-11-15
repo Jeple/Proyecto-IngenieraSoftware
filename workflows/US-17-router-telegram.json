@@ -1,0 +1,777 @@
+{
+  "id": "farmaciaUS17rout",
+  "name": "US-17 Router de intenciones de Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-bot",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "1b5d4926-251a-48ba-82fc-6d200663ad6e",
+      "name": "webhook_telegram",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "us17-webhook-telegram-bot",
+      "notes": "Único webhook del bot (Telegram admite uno). Lo registra scripts/local/levantar.mjs con setWebhook y secret_token."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-17 — clasificar (router de intenciones de Telegram).\n *\n * Un bot de Telegram admite UN solo webhook. Este nodo recibe todos los\n * updates del bot, valida el secreto del webhook y decide la intención con\n * reglas deterministas, sin LLM:\n *\n *   1. Foto o imagen                         -> receta     (US-09)\n *   2. aprobar/rechazar FAR-XXXX (farmacéutico) -> aprobacion (US-20)\n *   3. en ruta/entregado FAR-XXXX (personal)  -> despacho   (US-22)\n *      revisar vencidos (personal)            -> expiracion (US-10 a demanda)\n *   4. Riesgo vital o autolesión              -> respuesta de contención (RNF-08)\n *   5. Pregunta clínica (dosis, síntomas)     -> respuesta sin consejo clínico (RNF-08)\n *   6. Saludo, /start o ayuda                 -> bienvenida con el menú\n *   7. reservar/encargar/apartar ...          -> reserva    (US-05)\n *   8. Código FAR-XXXX, RUT o \"estado\"        -> estado     (US-06)\n *   9. Horario, dirección u otros trámites    -> respuesta: fuera del dominio\n *  10. Resto: nombre de un remedio            -> consulta   (US-04)\n *  11. Texto largo sin regla                  -> ambiguo (Gemini opcional; si no, menú)\n *\n * El router además NORMALIZA el texto antes de derivarlo: quita saludos y\n * muletillas (\"hola, ¿hay pregavalina 75?\" -> \"pregavalina 75\"), porque el\n * buscador difuso de US-04/US-05 promedia todas las palabras y las muletillas\n * bajan el puntaje bajo el umbral. El texto normalizado viaja en\n * body.message.text; el original queda en texto_original.\n *\n * Salida: UN ítem { intent, chat_id, reply, texto_original, texto_limpio,\n * llm_disponible, headers, body } o [] (secreto inválido o update sin\n * mensaje). headers y body se reenvían al subflujo, que vuelve a validar el\n * secreto (defensa en profundidad). Nunca lanza excepciones.\n */\n\nconst MENSAJES = {\n  bienvenida:\n    'Hola, soy el asistente virtual de la Farmacia Comunitaria de Peñalolén (prototipo).\\n' +\n    'Soy un programa automático: respondo solo con los datos de la planilla oficial de la farmacia y no doy indicaciones médicas.\\n\\n' +\n    'Puede escribirme:\\n' +\n    '• El nombre de un remedio, por ejemplo: pregabalina 75\\n' +\n    '• Para reservar: reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto\\n' +\n    '• Para ver su pedido: estado #FAR-0001, o su RUT\\n' +\n    '• Para enviar su receta: una foto con el código #FAR-0001 escrito en el texto de la foto\\n\\n' +\n    'Si reserva, usamos su RUT y su dirección solo para gestionar el pedido. Ante una urgencia, llame al SAMU 131.',\n  urgencia:\n    'Si es una urgencia, llame ahora al SAMU 131 o acuda al SAPU más cercano. ' +\n    'Este asistente no puede atender emergencias médicas.',\n  autolesion:\n    'Si está pensando en hacerse daño, no está solo ni sola. Llame ahora a la línea *4141 ' +\n    '(gratuita, 24 horas, desde celulares) o al SAMU 131.',\n  consejo:\n    'No puedo dar indicaciones sobre dosis, síntomas ni tratamientos. Consulte a su médico o al ' +\n    'químico farmacéutico de la farmacia. Si es una urgencia, llame al SAMU 131.',\n  estado_sin_dato:\n    'Para ver su pedido, escriba su código (por ejemplo: estado #FAR-0001) o su RUT (por ejemplo: 11.111.111-1).',\n  sin_texto:\n    'Por ahora solo puedo leer mensajes de texto y fotos de recetas. Escriba el nombre del remedio que busca.',\n  fuera_de_dominio:\n    'Por ahora solo puedo ayudarle con remedios (stock y precio), reservas, recetas y el estado de su pedido. ' +\n    'Para horarios, dirección u otros trámites, consulte el sitio web de la Municipalidad de Peñalolén.',\n  no_entendido:\n    'No logré entender su mensaje. Escriba el nombre del remedio (por ejemplo: losartán 50), ' +\n    '\"estado\" y su código #FAR, o \"ayuda\" para ver todas las opciones.'\n};\n\nconst RE_FAR = /#?\\s*FAR\\s*-?\\s*(\\d{4})\\b/i;\nconst RE_RUT = /\\b\\d{1,2}\\.?\\d{3}\\.?\\d{3}\\s*-\\s*[\\dkK]\\b/;\n// Mismo patrón que parse_pharmacist_command de US-20 (contrato entre router y subflujo).\nconst RE_CMD_FARMACEUTICO = /^\\s*\\/?\\s*(aprobar|rechazar)\\s+#?FAR-\\d{4}\\b/i;\nconst RE_CMD_PERSONAL = /^\\s*\\/?\\s*(en\\s+ruta|ruta|despachar|entregado|entregar)\\s+#?\\s*FAR-?\\d{4}\\b/i;\n// El personal puede ejecutar a demanda la liberación de reservas vencidas (US-10).\nconst RE_CMD_EXPIRACION = /^\\s*\\/?\\s*(revisar\\s+vencidos|expirar\\s+vencidos)\\s*$/i;\nconst RE_PALABRA_RESERVA = /(?:^|[^a-záéíóúñ])(reservar|reserva|res[eé]rvame|encargar|encargo|comprar|apartar|lo\\s+quiero)(?![a-záéíóúñ])/i;\nconst RE_ESTADO = /\\b(estado|seguimiento|mi\\s+pedido|mi\\s+orden|donde\\s+(viene|va|esta)|cuando\\s+llega)\\b/;\nconst MAX_PALABRAS_CONSULTA = 6;\n// Preguntas que no son de remedios ni pedidos (horario, ubicación, trámites).\nconst RE_FUERA_DOMINIO = /\\b(horario|horarios|a que hora|abren|cierran|atienden|direccion|ubicacion|donde queda|donde estan|telefono de la farmacia|inscribir|inscripcion|inscribirme)\\b/;\n\n// Frases normalizadas (minúsculas y sin tildes) que activan la contención.\nconst FRASES_AUTOLESION = ['suicid', 'quitarme la vida', 'matarme', 'hacerme dano', 'no quiero vivir',\n  'quiero morir', 'me quiero morir', 'terminar con mi vida'];\nconst FRASES_URGENCIA = ['dolor de pecho', 'dolor en el pecho', 'duele el pecho', 'dolor toracico', 'no puedo respirar', 'me ahogo', 'desmay',\n  'convulsion', 'sobredosis', 'intoxic', 'me tome todas', 'infarto', 'inconsciente', 'no reacciona',\n  'sangra mucho', 'sangrado abundante', 'urgencia', 'emergencia', 'accidente'];\nconst FRASES_CONSEJO = ['dosis', 'cuantas pastillas', 'cuantas tomo', 'cuanto tomo', 'cuantas debo',\n  'puedo tomar', 'se puede tomar', 'debo tomar', 'efecto secundario', 'efectos secundarios', 'contraindic',\n  'embarazada', 'lactancia', 'para que sirve', 'me duele', 'dolor de', 'sintoma', 'que me recomienda',\n  'que tomo para', 'con alcohol', 'puedo mezclar', 'receta medica para', 'diagnost'];\n\n// Palabras de relleno que se quitan antes de buscar el remedio.\nconst RELLENO = new Set(['hola', 'holi', 'ola', 'alo', 'buenas', 'buenos', 'buen', 'dia', 'dias', 'tardes',\n  'noches', 'hay', 'tienen', 'tiene', 'tendran', 'tendra', 'queda', 'quedan', 'stock', 'disponible',\n  'disponibles', 'disponibilidad', 'precio', 'precios', 'valor', 'cuanto', 'cuesta', 'cuestan', 'vale',\n  'valen', 'sale', 'salen', 'el', 'la', 'los', 'las', 'lo', 'del', 'de', 'un', 'una', 'unos', 'unas', 'me',\n  'mi', 'por', 'favor', 'porfa', 'porfis', 'please', 'quiero', 'quisiera', 'necesito', 'necesitaria',\n  'busco', 'buscando', 'saber', 'si', 'consultar', 'consulta', 'preguntar', 'pregunta', 'remedio',\n  'remedios', 'medicamento', 'medicamentos', 'pastilla', 'pastillas', 'gracias', 'para', 'que', 'y', 'o',\n  'a', 'en', 'con', 'ustedes', 'usted', 'ahi', 'alguna', 'alguno', 'algun', 'farmacia', 'comunitaria',\n  'oiga', 'senor', 'senora', 'senorita', 'disculpe', 'consultarles', 'les', 'donde', 'puedo', 'comprar',\n  'conseguir', 'encontrar', 'venden', 'vende', 'todavia', 'aun', 'ahora', 'hoy']);\n\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) => typeof name === 'string' && name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\n/** Lista de chat_id separada por comas -> arreglo limpio. */\nfunction parseIdList(list) {\n  const raw = typeof list === 'string' ? list : '';\n  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);\n}\n\nfunction inList(chatId, list) {\n  if (chatId === null || chatId === undefined) return false;\n  return parseIdList(list).indexOf(String(chatId)) !== -1;\n}\n\nfunction sinTildes(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[̀-ͯ]/g, '');\n}\n\nfunction contieneAlguna(textoNormalizado, frases) {\n  for (let i = 0; i < frases.length; i++) {\n    if (textoNormalizado.indexOf(frases[i]) !== -1) return true;\n  }\n  return false;\n}\n\n/** Quita saludos y muletillas; conserva nombres, dosis y unidades. */\nfunction limpiarConsulta(texto) {\n  const tokens = sinTildes(texto)\n    .replace(/[¿?¡!.,;:()\"'*]+/g, ' ')\n    .split(/\\s+/)\n    .filter((t) => t.length > 0);\n  return tokens.filter((t) => !RELLENO.has(t)).join(' ').trim();\n}\n\n/** Deja el texto desde la palabra de reserva y normaliza \"2 cajas\" -> \"x2\". */\nfunction normalizarReserva(texto) {\n  let t = String(texto === null || texto === undefined ? '' : texto).trim();\n  // Saludo o muletilla antes de la palabra clave: \"hola, quiero reservar ...\" -> \"reservar ...\"\n  const m = RE_PALABRA_RESERVA.exec(t);\n  if (m && limpiarConsulta(t.slice(0, m.index)) === '') t = t.slice(m.index + m[0].indexOf(m[1]));\n  t = t.replace(/^(res[eé]rvame|apartar)(?![a-záéíóúñ])/i, 'reservar');\n  const coma = t.indexOf(',');\n  let cabeza = coma === -1 ? t : t.slice(0, coma);\n  const cola = coma === -1 ? '' : t.slice(coma);\n  cabeza = cabeza.replace(/(\\d{1,3})\\s*(cajas?|unidades|unidad|uds?|u)\\b/gi, ' x$1 ');\n  // Relleno solo en el segmento del producto; nunca toca RUT, dirección ni sector.\n  cabeza = cabeza\n    .split(/\\s+/)\n    .filter((w) => w.length > 0)\n    .filter((w, i) => i === 0 || !RELLENO.has(sinTildes(w).replace(/[¿?¡!.;:]+/g, '')))\n    .join(' ');\n  return (cabeza + cola).replace(/\\s+,/g, ',').replace(/\\s{2,}/g, ' ').trim();\n}\n\n/**\n * Es reserva cuando la palabra clave aparece al inicio o precedida solo de\n * saludos y muletillas (\"hola, quiero reservar ...\"). \"el estado de mi\n * reserva\" NO es reserva: \"estado\" no es relleno.\n */\nfunction esReserva(texto) {\n  const t = String(texto === null || texto === undefined ? '' : texto);\n  const m = RE_PALABRA_RESERVA.exec(t);\n  if (!m) return false;\n  return limpiarConsulta(t.slice(0, m.index)) === '';\n}\n\nfunction esSoloSaludo(texto) {\n  const n = sinTildes(texto).replace(/[¿?¡!.,;:]+/g, ' ').trim();\n  if (/^\\/?(start|ayuda|help|menu|opciones|inicio)\\b/.test(n)) return true;\n  return limpiarConsulta(texto) === '' && n.length > 0;\n}\n\nfunction contarPalabras(texto) {\n  return texto ? texto.split(/\\s+/).filter((t) => t.length > 0).length : 0;\n}\n\n/** Copia el update reemplazando message.text (o caption) por el texto normalizado. */\nfunction bodyConTexto(update, texto) {\n  const copia = JSON.parse(JSON.stringify(update));\n  if (copia.message && typeof copia.message.text === 'string') copia.message.text = texto;\n  return copia;\n}\n\n/**\n * Decide la intención de UN update. Devuelve el ítem de salida o null.\n * env: { secret, pharmacists, staff, geminiKey }.\n */\nfunction classifyUpdate(update, headers, env) {\n  if (!isAuthorized(headers, env.secret)) return null;\n  if (!update || typeof update !== 'object') return null;\n  const message = update.message;\n  if (!message || typeof message !== 'object') return null;\n  const chat =\n    message.chat && (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return null;\n\n  const staffList = parseIdList(env.staff).length ? env.staff : env.pharmacists;\n  const texto = typeof message.text === 'string' ? message.text.trim() : '';\n  const caption = typeof message.caption === 'string' ? message.caption.trim() : '';\n  const out = {\n    intent: 'respuesta',\n    motivo: '',\n    chat_id: chat,\n    reply: '',\n    texto_original: texto || caption,\n    texto_limpio: '',\n    llm_disponible: !!(env.geminiKey && String(env.geminiKey).trim()),\n    headers: headers,\n    body: update\n  };\n\n  // 1) Receta: foto (o imagen enviada como archivo).\n  const esImagen =\n    (Array.isArray(message.photo) && message.photo.length > 0) ||\n    (message.document && /^image\\//.test(String(message.document.mime_type || '')));\n  if (esImagen) {\n    out.intent = 'receta';\n    out.motivo = 'foto';\n    return out;\n  }\n\n  if (!texto) {\n    out.motivo = 'sin_texto';\n    out.reply = MENSAJES.sin_texto;\n    return out;\n  }\n\n  // 2-3) Comandos del personal (solo desde chats autorizados).\n  if (RE_CMD_FARMACEUTICO.test(texto) && inList(chat, env.pharmacists)) {\n    out.intent = 'aprobacion';\n    out.motivo = 'comando_farmaceutico';\n    return out;\n  }\n  if (RE_CMD_PERSONAL.test(texto) && inList(chat, staffList)) {\n    out.intent = 'despacho';\n    out.motivo = 'comando_personal';\n    return out;\n  }\n  if (RE_CMD_EXPIRACION.test(texto) && inList(chat, staffList)) {\n    out.intent = 'expiracion';\n    out.motivo = 'comando_personal';\n    return out;\n  }\n\n  // 4-5) Seguridad clínica antes que cualquier intención comercial (RNF-08).\n  const n = sinTildes(texto);\n  if (contieneAlguna(n, FRASES_AUTOLESION)) {\n    out.motivo = 'autolesion';\n    out.reply = MENSAJES.autolesion;\n    return out;\n  }\n  if (contieneAlguna(n, FRASES_URGENCIA)) {\n    out.motivo = 'urgencia';\n    out.reply = MENSAJES.urgencia;\n    return out;\n  }\n  if (contieneAlguna(n, FRASES_CONSEJO)) {\n    out.motivo = 'consejo_clinico';\n    out.reply = MENSAJES.consejo;\n    return out;\n  }\n\n  // 6) Saludo o ayuda.\n  if (esSoloSaludo(texto)) {\n    out.motivo = 'bienvenida';\n    out.reply = MENSAJES.bienvenida;\n    return out;\n  }\n\n  // 7) Reserva (antes que estado: la reserva trae RUT).\n  if (esReserva(texto)) {\n    const limpio = normalizarReserva(texto);\n    out.intent = 'reserva';\n    out.motivo = 'palabra_reserva';\n    out.texto_limpio = limpio;\n    out.body = bodyConTexto(update, limpio);\n    return out;\n  }\n\n  // 8) Estado: código, RUT o palabra clave.\n  if (RE_FAR.test(texto) || RE_RUT.test(texto)) {\n    out.intent = 'estado';\n    out.motivo = 'codigo_o_rut';\n    return out;\n  }\n  if (RE_ESTADO.test(n)) {\n    out.motivo = 'estado_sin_dato';\n    out.reply = MENSAJES.estado_sin_dato;\n    return out;\n  }\n\n  // 9) Fuera del dominio: respuesta honesta en vez de buscar un remedio inexistente.\n  if (RE_FUERA_DOMINIO.test(n)) {\n    out.motivo = 'fuera_de_dominio';\n    out.reply = MENSAJES.fuera_de_dominio;\n    return out;\n  }\n\n  // 10-11) Consulta de un remedio, o texto ambiguo.\n  const limpio = limpiarConsulta(texto);\n  out.texto_limpio = limpio;\n  if (!limpio) {\n    out.motivo = 'bienvenida';\n    out.reply = MENSAJES.bienvenida;\n    return out;\n  }\n  if (contarPalabras(limpio) > MAX_PALABRAS_CONSULTA) {\n    out.intent = 'ambiguo';\n    out.motivo = 'texto_largo';\n    out.reply = MENSAJES.no_entendido;\n    out.body = bodyConTexto(update, limpio);\n    return out;\n  }\n  out.intent = 'consulta';\n  out.motivo = 'nombre_remedio';\n  out.body = bodyConTexto(update, limpio);\n  return out;\n}\n\n// --- ensamblaje n8n (protegido para que el arnés de pruebas cargue las funciones) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const json = items[i] && items[i].json ? items[i].json : items[i];\n      const headers = json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update = json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = classifyUpdate(update, headers, {\n        secret: $env.TELEGRAM_WEBHOOK_SECRET,\n        pharmacists: $env.TELEGRAM_PHARMACIST_CHAT_IDS,\n        staff: $env.TELEGRAM_STAFF_CHAT_IDS,\n        geminiKey: $env.GEMINI_API_KEY\n      });\n      if (out) return [{ json: out }];\n    }\n  } catch (err) {\n    return [];\n  }\n  return [];\n}\n"
+      },
+      "id": "4854f449-c0e8-4aa3-90d0-196a6415205b",
+      "name": "clasificar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us17-cond-llm",
+              "leftValue": "={{ $json.intent === \"ambiguo\" && $json.llm_disponible ? \"SI\" : \"NO\" }}",
+              "rightValue": "SI",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6aab9276-0a99-4949-8a10-31e93bc37b10",
+      "name": "si_ambiguo_y_llm",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://generativelanguage.googleapis.com/v1beta/models/' + ($env.GEMINI_MODEL || 'gemini-2.5-flash') + ':generateContent' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Clasifica el mensaje de un vecino a una farmacia municipal en UNA etiqueta: consulta (pregunta por un remedio), estado (pregunta por su pedido), reserva (quiere reservar), ayuda (otra cosa), urgencia (emergencia médica), consejo (pide dosis o indicación médica). Responde solo la etiqueta, en minúsculas. Mensaje: ' + $json.texto_limpio }] }], generationConfig: { temperature: 0, maxOutputTokens: 5 } }) }}",
+        "options": {
+          "timeout": 4000
+        }
+      },
+      "id": "99c531b1-d7f7-41df-9eee-82c1012d92cc",
+      "name": "gemini_clasificar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        120
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Opcional (GEMINI_API_KEY). Solo elige una etiqueta de una lista cerrada; nunca redacta respuestas ni aporta datos del negocio (R-02)."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-17 — aplicar_llm (respaldo opcional con Gemini).\n *\n * Solo se ejecuta cuando las reglas dejaron el mensaje como \"ambiguo\" y hay\n * GEMINI_API_KEY. Gemini SOLO elige una etiqueta de una lista cerrada; nunca\n * redacta la respuesta ni aporta nombres, precios o stock (riesgo R-02). Toda\n * respuesta sale de los textos fijos del router o de los subflujos, que leen\n * la planilla. Si Gemini falla, demora o responde algo fuera de la lista, se\n * mantiene el menú de ayuda (degradación elegante).\n *\n * Etiquetas: consulta | estado | reserva | ayuda | urgencia | consejo.\n */\nconst ETIQUETAS = ['consulta', 'estado', 'reserva', 'ayuda', 'urgencia', 'consejo'];\n\nconst RESPUESTAS = {\n  urgencia:\n    'Si es una urgencia, llame ahora al SAMU 131 o acuda al SAPU más cercano. ' +\n    'Este asistente no puede atender emergencias médicas.',\n  consejo:\n    'No puedo dar indicaciones sobre dosis, síntomas ni tratamientos. Consulte a su médico o al ' +\n    'químico farmacéutico de la farmacia. Si es una urgencia, llame al SAMU 131.',\n  estado:\n    'Para ver su pedido, escriba su código (por ejemplo: estado #FAR-0001) o su RUT (por ejemplo: 11.111.111-1).',\n  reserva:\n    'Para reservar escriba en un solo mensaje: reservar [remedio] x[cantidad] rut [su RUT], [dirección], [sector]. ' +\n    'Por ejemplo: reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto.'\n};\n\n/** Extrae la etiqueta de la respuesta de Gemini; null si no es válida. */\nfunction etiquetaDesdeGemini(respuesta) {\n  try {\n    const parts =\n      respuesta && respuesta.candidates && respuesta.candidates[0] &&\n      respuesta.candidates[0].content && respuesta.candidates[0].content.parts;\n    const texto = Array.isArray(parts) ? parts.map((p) => (p && p.text) || '').join(' ') : '';\n    const limpio = String(texto).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')\n      .replace(/[^a-z]/g, ' ').trim().split(/\\s+/)[0] || '';\n    return ETIQUETAS.indexOf(limpio) !== -1 ? limpio : null;\n  } catch (err) {\n    return null;\n  }\n}\n\n/**\n * Aplica la etiqueta sobre el ítem clasificado. Solo \"consulta\" deriva a un\n * subflujo; el resto responde con un texto fijo. Sin etiqueta válida, se\n * mantiene la respuesta \"no entendido\" ya preparada por clasificar.\n */\nfunction aplicarEtiqueta(clasificado, etiqueta) {\n  const out = Object.assign({}, clasificado, { llm_etiqueta: etiqueta || '' });\n  if (!etiqueta || etiqueta === 'ayuda') {\n    out.intent = 'respuesta';\n    out.motivo = etiqueta ? 'llm_ayuda' : 'llm_sin_etiqueta';\n    return out;\n  }\n  if (etiqueta === 'consulta') {\n    out.intent = 'consulta';\n    out.motivo = 'llm_consulta';\n    out.reply = '';\n    return out;\n  }\n  out.intent = 'respuesta';\n  out.motivo = 'llm_' + etiqueta;\n  out.reply = RESPUESTAS[etiqueta] || out.reply;\n  return out;\n}\n\n// --- ensamblaje n8n ---\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  let clasificado = null;\n  try {\n    clasificado = $('clasificar').first().json;\n  } catch (err) {\n    clasificado = null;\n  }\n  if (!clasificado) return [];\n  const etiqueta = etiquetaDesdeGemini($input.first().json);\n  return [{ json: aplicarEtiqueta(clasificado, etiqueta) }];\n}\n"
+      },
+      "id": "e4fee289-d230-48a1-a699-b7d4eb55a51f",
+      "name": "aplicar_llm",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-consulta",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "consulta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "consulta"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-reserva",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "reserva",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "reserva"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-estado",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "estado",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "estado"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-receta",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "receta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "receta"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-aprobacion",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "aprobacion",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "aprobacion"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-despacho",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "despacho",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "despacho"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "us17-regla-expiracion",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "expiracion",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "expiracion"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "respuesta"
+        }
+      },
+      "id": "ab266e13-9ac3-4c25-a266-7e30be46e01b",
+      "name": "derivar",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS04cons"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "9514bea5-2b8f-4b13-afdc-e7e53872ed63",
+      "name": "ir_consulta",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS05rese"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "4f3deee4-5093-4bd6-a269-4b217de6c998",
+      "name": "ir_reserva",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        140
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS06traz"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "929ea117-e023-44b7-9b24-19fd11191386",
+      "name": "ir_estado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        280
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS09rect"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "0dc682fe-1be5-4ef3-857a-24c0e1496cd6",
+      "name": "ir_receta",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        420
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS20apro"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "3c3fb9f6-12a5-4f66-83bc-cdd7a6ccd01f",
+      "name": "ir_aprobacion",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        560
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS22desp"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "e8df684a-2263-44f2-b9f1-c0973f7352ea",
+      "name": "ir_despacho",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        700
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "farmaciaUS10cron"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "84705660-84d1-4b85-8c0f-ebf799806bfb",
+      "name": "ir_expiracion",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        840
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.reply }) }}",
+        "options": {}
+      },
+      "id": "f037b7df-51ca-429f-a595-c4c21e4e894c",
+      "name": "responder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        1000
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('clasificar').first().json.chat_id, text: 'Tuvimos un problema al atender su mensaje. Por favor, intente nuevamente en unos minutos. Si es una urgencia médica, llame al SAMU 131.' }) }}",
+        "options": {}
+      },
+      "id": "2711e523-3946-4592-b5cc-c756d5b21699",
+      "name": "responder_falla",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        360
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Degradación elegante: si un subflujo falla, el vecino recibe un aviso en vez de silencio. La alerta al equipo la emite el subflujo (US-21)."
+    }
+  ],
+  "connections": {
+    "webhook_telegram": {
+      "main": [
+        [
+          {
+            "node": "clasificar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clasificar": {
+      "main": [
+        [
+          {
+            "node": "si_ambiguo_y_llm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "si_ambiguo_y_llm": {
+      "main": [
+        [
+          {
+            "node": "gemini_clasificar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "derivar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "gemini_clasificar": {
+      "main": [
+        [
+          {
+            "node": "aplicar_llm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "aplicar_llm": {
+      "main": [
+        [
+          {
+            "node": "derivar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "derivar": {
+      "main": [
+        [
+          {
+            "node": "ir_consulta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ir_reserva",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ir_estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ir_receta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ir_aprobacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ir_despacho",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ir_expiracion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_consulta": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_reserva": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_estado": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_receta": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_aprobacion": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_despacho": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ir_expiracion": {
+      "main": [
+        [],
+        [
+          {
+            "node": "responder_falla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "farmaciaUS21aler"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "0457a276-7157-4756-a3fe-383d1b83b5a8",
+  "tags": []
+}

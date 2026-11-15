@@ -1,0 +1,757 @@
+{
+  "id": "farmaciaUS22desp",
+  "name": "US-22 Despacho marcado por el personal",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "bc2af930-f4d2-4fad-9b49-ea2c3901fd41",
+      "name": "entrada_router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "Entrada interna: la invoca el router (US-17) con el update de Telegram y sus encabezados."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-22 — parse_staff_command.\n *\n * El personal de la farmacia marca el avance del despacho desde Telegram, sin\n * app del conductor (fuera del alcance firmado). Autorización en dos capas,\n * igual que US-20:\n *   1. Secreto del webhook (X-Telegram-Bot-Api-Secret-Token == $env.TELEGRAM_WEBHOOK_SECRET).\n *   2. El chat debe estar en $env.TELEGRAM_STAFF_CHAT_IDS; si esa lista está\n *      vacía se usa $env.TELEGRAM_PHARMACIST_CHAT_IDS. Cualquier otro chat se\n *      descarta en silencio.\n *\n * Comandos (sin distinguir mayúsculas, \"/\" y \"#\" opcionales):\n *   en ruta FAR-XXXX   (también: ruta, despachar)  -> command \"ruta\"\n *   entregado FAR-XXXX (también: entregar)          -> command \"entregado\"\n *\n * Salida: UN ítem { chat_id, command, codigo_far, text } o [].\n */\nfunction isAuthorized(headers, secret) {\n  if (!headers || typeof headers !== 'object') return false;\n  if (typeof secret !== 'string' || !secret) return false;\n  const key = Object.keys(headers).find(\n    (name) => typeof name === 'string' && name.toLowerCase() === 'x-telegram-bot-api-secret-token'\n  );\n  if (!key) return false;\n  const value = headers[key];\n  return typeof value === 'string' && value === secret;\n}\n\nfunction parseIdList(list) {\n  const raw = typeof list === 'string' ? list : '';\n  return raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0);\n}\n\n/** El chat está autorizado si figura en la lista de personal (o, sin ella, en la de farmacéuticos). */\nfunction isStaff(chatId, staffList, pharmacistList) {\n  if (chatId === null || chatId === undefined) return false;\n  const staff = parseIdList(staffList);\n  const ids = staff.length ? staff : parseIdList(pharmacistList);\n  return ids.length > 0 && ids.indexOf(String(chatId)) !== -1;\n}\n\n/** \"en ruta FAR-0001\" -> { command: 'ruta', codigo_far: '#FAR-0001' }; null si no es comando. */\nfunction parseStaffCommand(text) {\n  if (typeof text !== 'string') return null;\n  const m = /^\\s*\\/?\\s*(en\\s+ruta|ruta|despachar|entregado|entregar)\\s+#?\\s*FAR-?(\\d{4})\\b/i.exec(text);\n  if (!m) return null;\n  const verbo = m[1].toLowerCase().replace(/\\s+/g, ' ');\n  const command = verbo === 'entregado' || verbo === 'entregar' ? 'entregado' : 'ruta';\n  return { command: command, codigo_far: '#FAR-' + m[2] };\n}\n\nfunction parseTelegramUpdate(update, headers, secret, staffList, pharmacistList) {\n  if (!isAuthorized(headers, secret)) return [];\n  if (!update || typeof update !== 'object') return [];\n  const message = update.message;\n  if (!message || typeof message !== 'object') return [];\n  const chat =\n    message.chat && (typeof message.chat.id === 'string' || typeof message.chat.id === 'number')\n      ? String(message.chat.id)\n      : '';\n  if (!chat) return [];\n  if (!isStaff(chat, staffList, pharmacistList)) return [];\n  const text = typeof message.text === 'string' ? message.text.trim() : '';\n  const parsed = parseStaffCommand(text);\n  if (!parsed) return [];\n  return [{ json: { chat_id: chat, command: parsed.command, codigo_far: parsed.codigo_far, text: text } }];\n}\n\n// --- ensamblaje n8n (protegido para que el arnés de pruebas cargue las funciones) ---\nif (typeof $input !== 'undefined') {\n  try {\n    const items = $input.all();\n    for (let i = 0; i < items.length; i++) {\n      const json = items[i] && items[i].json ? items[i].json : items[i];\n      const headers = json && json.headers && typeof json.headers === 'object' ? json.headers : {};\n      const update = json && json.body && typeof json.body === 'object' ? json.body : json;\n      const out = parseTelegramUpdate(\n        update,\n        headers,\n        $env.TELEGRAM_WEBHOOK_SECRET,\n        $env.TELEGRAM_STAFF_CHAT_IDS,\n        $env.TELEGRAM_PHARMACIST_CHAT_IDS\n      );\n      if (out.length) return out;\n    }\n  } catch (err) {\n    return [];\n  }\n  return [];\n}\n"
+      },
+      "id": "de07977e-ab67-4f49-a80f-a3627db0536c",
+      "name": "parse_staff_command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:M"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "85ddf421-d3dd-46a1-95dd-4b3dc36b2a60",
+      "name": "read_ordenes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "range": {
+          "__rl": true,
+          "mode": "range",
+          "value": "A:E"
+        },
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "42e557ea-f668-44d9-8619-18e518f50435",
+      "name": "read_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * US-22 — evaluate_dispatch.\n *\n * Aplica la transición logística de UN comando del personal:\n *   ruta      + EN_PREPARACION -> EN_RUTA    (sin efecto en stock)\n *   entregado + EN_RUTA        -> ENTREGADO  (descuenta stock_real y libera\n *                                             stock_reservado UNA sola vez)\n * Cualquier otra combinación es INVALID y no escribe nada: el estado de origen\n * es la guarda de idempotencia, de modo que repetir \"entregado\" nunca descuenta\n * dos veces. Cada transición válida deja su fila en la bitácora con\n * estado_anterior, estado_nuevo y actor (personal:<chat_id>) y avisa al vecino.\n */\nconst ESTADO_PREPARACION = 'EN_PREPARACION';\nconst ESTADO_RUTA = 'EN_RUTA';\nconst ESTADO_ENTREGADO = 'ENTREGADO';\nconst ACCION_RUTA = 'DESPACHO_EN_RUTA';\nconst ACCION_ENTREGA = 'PEDIDO_ENTREGADO';\n\nfunction normalize(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[̀-ͯ]/g, '')\n    .replace(/[^a-z0-9]+/g, ' ')\n    .trim();\n}\n\nfunction rowJson(item) {\n  return item && item.json ? item.json : item;\n}\n\nfunction codigoKey(value) {\n  return String(value === null || value === undefined ? '' : value).toUpperCase().replace(/^#/, '').trim();\n}\n\nfunction findOrderByCode(codigo, orderItems) {\n  const key = codigoKey(codigo);\n  if (!key) return null;\n  const rows = (orderItems || []).map(rowJson).filter((r) => r && typeof r === 'object');\n  for (let i = 0; i < rows.length; i++) {\n    if (codigoKey(rows[i].codigo_far) === key) return rows[i];\n  }\n  return null;\n}\n\nfunction findInventoryFor(medicamentoId, inventoryItems) {\n  const key = normalize(medicamentoId);\n  if (!key) return null;\n  const rows = (inventoryItems || []).map(rowJson).filter((r) => r && typeof r === 'object');\n  for (let i = 0; i < rows.length; i++) {\n    if (normalize(rows[i].medicamento_id) === key) return rows[i];\n  }\n  return null;\n}\n\n/** Decisión pura sobre el estado del pedido. Nunca lanza excepciones. */\nfunction decideDispatch(order, command, codigoRaw) {\n  const codigo = order\n    ? '#' + codigoKey(order.codigo_far)\n    : (codigoRaw ? '#' + codigoKey(codigoRaw) : '#FAR-XXXX');\n  const estado = order && order.estado ? String(order.estado) : '';\n  const base = {\n    decisionKey: 'INVALID',\n    estado_anterior: '',\n    estado_nuevo: '',\n    staff_message: '',\n    customer_message: ''\n  };\n  if (!order) {\n    base.staff_message = 'No encontré el pedido ' + codigo + '.';\n    return base;\n  }\n  if (command === 'ruta') {\n    if (estado === ESTADO_PREPARACION) {\n      base.decisionKey = 'EN_RUTA';\n      base.estado_anterior = ESTADO_PREPARACION;\n      base.estado_nuevo = ESTADO_RUTA;\n      base.staff_message = 'Listo: ' + codigo + ' pasa a ' + ESTADO_RUTA + '. Se avisó al vecino.';\n      base.customer_message = 'Su pedido ' + codigo + ' va en camino. El conductor de la farmacia lo entregará en la dirección registrada.';\n      return base;\n    }\n    base.staff_message = estado === ESTADO_RUTA\n      ? codigo + ' ya estaba ' + ESTADO_RUTA + '. No se aplicó ningún cambio.'\n      : codigo + ' no está en ' + ESTADO_PREPARACION + ' (estado actual: ' + (estado || 'desconocido') + '). No se aplicó ningún cambio.';\n    return base;\n  }\n  if (command === 'entregado') {\n    if (estado === ESTADO_RUTA) {\n      base.decisionKey = 'ENTREGADO';\n      base.estado_anterior = ESTADO_RUTA;\n      base.estado_nuevo = ESTADO_ENTREGADO;\n      base.staff_message = 'Listo: ' + codigo + ' quedó ' + ESTADO_ENTREGADO + ' y se descontó el stock.';\n      base.customer_message = 'Su pedido ' + codigo + ' fue entregado. Gracias por preferir la Farmacia Comunitaria de Peñalolén.';\n      return base;\n    }\n    base.staff_message = estado === ESTADO_ENTREGADO\n      ? codigo + ' ya estaba ' + ESTADO_ENTREGADO + '. No se aplicó ningún cambio.'\n      : codigo + ' no está ' + ESTADO_RUTA + ' (estado actual: ' + (estado || 'desconocido') + '). Primero márquelo \"en ruta\".';\n    return base;\n  }\n  base.staff_message = 'Comando no reconocido. Use \"en ruta FAR-XXXX\" o \"entregado FAR-XXXX\".';\n  return base;\n}\n\n/**\n * Al entregar, el pedido sale físicamente de bodega: stock_real y\n * stock_reservado bajan en la cantidad del pedido, ambos con piso 0.\n * Devuelve null si falta la fila de inventario (se avisa en vez de escribir).\n */\nfunction buildInventoryUpdate(order, invRow, nowIso) {\n  if (!order || !invRow) return null;\n  const cantidad = Math.abs(Number(order.cantidad) || 0);\n  const real = Number(invRow.stock_real);\n  const reserved = Number(invRow.stock_reservado);\n  return {\n    medicamento_id: order.medicamento_id,\n    stock_real: Math.max(0, (isNaN(real) ? 0 : real) - cantidad),\n    stock_reservado: Math.max(0, (isNaN(reserved) ? 0 : reserved) - cantidad),\n    ultima_actualizacion: nowIso || new Date().toISOString()\n  };\n}\n\nfunction buildBitacoraRow(order, decision, chatId, nowIso) {\n  const entrega = decision.decisionKey === 'ENTREGADO';\n  return {\n    timestamp: nowIso || new Date().toISOString(),\n    accion: entrega ? ACCION_ENTREGA : ACCION_RUTA,\n    codigo_far: codigoKey(order.codigo_far),\n    medicamento_id: order.medicamento_id,\n    delta_reservado: entrega ? -Math.abs(Number(order.cantidad) || 0) : 0,\n    detalle: entrega\n      ? 'Entrega confirmada por el personal vía Telegram; se descuenta stock_real y stock_reservado'\n      : 'Despacho iniciado por el personal vía Telegram',\n    estado_anterior: decision.estado_anterior,\n    estado_nuevo: decision.estado_nuevo,\n    actor: 'personal:' + chatId\n  };\n}\n\nfunction evaluateDispatch(parsed, orderItems, inventoryItems, nowIso) {\n  if (!parsed || !parsed.chat_id || !parsed.command || !parsed.codigo_far) return null;\n  const now = nowIso || new Date().toISOString();\n  const order = findOrderByCode(parsed.codigo_far, orderItems);\n  const decision = decideDispatch(order, parsed.command, parsed.codigo_far);\n  const payload = {\n    chat_id: String(parsed.chat_id),\n    codigo_far: codigoKey(parsed.codigo_far),\n    decision: decision.decisionKey,\n    estado_anterior: decision.estado_anterior,\n    estado_nuevo: decision.estado_nuevo,\n    estado_ruta: decision.decisionKey === 'INVALID' ? '' : decision.estado_nuevo,\n    fecha_marcado: now,\n    update_stock: 'NO',\n    inventory_update: null,\n    bitacora_row: null,\n    telefono: order && order.telefono !== null && order.telefono !== undefined ? String(order.telefono) : '',\n    message_staff: decision.staff_message,\n    message_customer: decision.customer_message || ''\n  };\n  if (decision.decisionKey === 'ENTREGADO' && order) {\n    const inventoryUpdate = buildInventoryUpdate(order, findInventoryFor(order.medicamento_id, inventoryItems), now);\n    if (inventoryUpdate) {\n      payload.update_stock = 'SI';\n      payload.inventory_update = inventoryUpdate;\n    } else {\n      payload.message_staff += ' Advertencia: no se encontró la fila de inventario; revisar manualmente.';\n    }\n  }\n  if (decision.decisionKey !== 'INVALID') {\n    payload.bitacora_row = buildBitacoraRow(order, decision, parsed.chat_id, now);\n  }\n  return payload;\n}\n\n// --- ensamblaje n8n (protegido para que el arnés de pruebas cargue las funciones) ---\nif (typeof $ !== 'undefined' && typeof $input !== 'undefined') {\n  let parsed = null;\n  try {\n    parsed = $('parse_staff_command').first().json;\n  } catch (err) {\n    parsed = null;\n  }\n  if (!parsed) return [];\n  const payload = evaluateDispatch(parsed, $('read_ordenes').all(), $('read_inventario').all(), new Date().toISOString());\n  if (!payload) return [];\n  return [{ json: payload }];\n}\n"
+      },
+      "id": "544c60ba-dcaf-45e8-ac21-e05351673d90",
+      "name": "evaluate_dispatch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us22-cond-commit",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "INVALID",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cee92980-5cb1-43f0-ab30-65d2f723499e",
+      "name": "if_commit",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ordenes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $('evaluate_dispatch').first().json.codigo_far }}",
+            "estado": "={{ $('evaluate_dispatch').first().json.estado_nuevo }}"
+          },
+          "matchingColumns": [
+            "codigo_far"
+          ],
+          "schema": [
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ebd473c6-e372-4e4d-b720-c135a7f5db87",
+      "name": "update_orden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        160
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "despachos"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "codigo_far": "={{ $('evaluate_dispatch').first().json.codigo_far }}",
+            "estado_ruta": "={{ $('evaluate_dispatch').first().json.estado_ruta }}",
+            "fecha_marcado": "={{ $('evaluate_dispatch').first().json.fecha_marcado }}"
+          },
+          "matchingColumns": [
+            "codigo_far"
+          ],
+          "schema": [
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_ruta",
+              "displayName": "estado_ruta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_marcado",
+              "displayName": "fecha_marcado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "475fb803-1664-4d67-9c0d-e74800808358",
+      "name": "update_despacho",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        160
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "us22-cond-stock",
+              "leftValue": "={{ $('evaluate_dispatch').first().json.update_stock }}",
+              "rightValue": "SI",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": false
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b71fe8cd-1f85-4fd5-b5cd-f4eee808b9ec",
+      "name": "if_entrega",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "inventario"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "medicamento_id": "={{ $('evaluate_dispatch').first().json.inventory_update.medicamento_id }}",
+            "stock_real": "={{ $('evaluate_dispatch').first().json.inventory_update.stock_real }}",
+            "stock_reservado": "={{ $('evaluate_dispatch').first().json.inventory_update.stock_reservado }}",
+            "ultima_actualizacion": "={{ $('evaluate_dispatch').first().json.inventory_update.ultima_actualizacion }}"
+          },
+          "matchingColumns": [
+            "medicamento_id"
+          ],
+          "schema": [
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock_real",
+              "displayName": "stock_real",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stock_reservado",
+              "displayName": "stock_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ultima_actualizacion",
+              "displayName": "ultima_actualizacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5d239815-9b27-454b-aa62-611573084916",
+      "name": "update_inventario",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        60
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "bitacora"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $('evaluate_dispatch').first().json.bitacora_row.timestamp }}",
+            "accion": "={{ $('evaluate_dispatch').first().json.bitacora_row.accion }}",
+            "codigo_far": "={{ $('evaluate_dispatch').first().json.bitacora_row.codigo_far }}",
+            "medicamento_id": "={{ $('evaluate_dispatch').first().json.bitacora_row.medicamento_id }}",
+            "delta_reservado": "={{ $('evaluate_dispatch').first().json.bitacora_row.delta_reservado }}",
+            "detalle": "={{ $('evaluate_dispatch').first().json.bitacora_row.detalle }}",
+            "estado_anterior": "={{ $('evaluate_dispatch').first().json.bitacora_row.estado_anterior }}",
+            "estado_nuevo": "={{ $('evaluate_dispatch').first().json.bitacora_row.estado_nuevo }}",
+            "actor": "={{ $('evaluate_dispatch').first().json.bitacora_row.actor }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "codigo_far",
+              "displayName": "codigo_far",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "medicamento_id",
+              "displayName": "medicamento_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "delta_reservado",
+              "displayName": "delta_reservado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "detalle",
+              "displayName": "detalle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_anterior",
+              "displayName": "estado_anterior",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado_nuevo",
+              "displayName": "estado_nuevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "148e03a6-35e7-49ca-85de-54b5c8eb0492",
+      "name": "append_bitacora",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        160
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "farmaciaGoogleSA",
+          "name": "Google (cuenta de servicio)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('evaluate_dispatch').first().json.telefono, text: $('evaluate_dispatch').first().json.message_customer }) }}",
+        "options": {}
+      },
+      "id": "0e3da8df-bf2f-4000-8140-8e4ecac5f820",
+      "name": "notify_customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        160
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TELEGRAM_API_BASE || 'https://api.telegram.org' }}/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('evaluate_dispatch').first().json.chat_id, text: $('evaluate_dispatch').first().json.message_staff }) }}",
+        "options": {}
+      },
+      "id": "760cdfc0-ff54-458e-b4f9-99a545b5c019",
+      "name": "reply_staff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "entrada_router": {
+      "main": [
+        [
+          {
+            "node": "parse_staff_command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parse_staff_command": {
+      "main": [
+        [
+          {
+            "node": "read_ordenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_ordenes": {
+      "main": [
+        [
+          {
+            "node": "read_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_inventario": {
+      "main": [
+        [
+          {
+            "node": "evaluate_dispatch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "evaluate_dispatch": {
+      "main": [
+        [
+          {
+            "node": "if_commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_commit": {
+      "main": [
+        [
+          {
+            "node": "update_orden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "reply_staff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_orden": {
+      "main": [
+        [
+          {
+            "node": "update_despacho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_despacho": {
+      "main": [
+        [
+          {
+            "node": "if_entrega",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if_entrega": {
+      "main": [
+        [
+          {
+            "node": "update_inventario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_inventario": {
+      "main": [
+        [
+          {
+            "node": "append_bitacora",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "append_bitacora": {
+      "main": [
+        [
+          {
+            "node": "notify_customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "notify_customer": {
+      "main": [
+        [
+          {
+            "node": "reply_staff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "farmaciaUS21aler"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "versionId": "7362f4ce-6cce-4cac-92f9-f2a6b827258d",
+  "tags": []
+}

@@ -1,0 +1,111 @@
+{
+  "fecha": "2026-11-09T17:29:58.683Z",
+  "catalogo": "16 medicamentos sintéticos (data/seed/medicamentos.csv)",
+  "busqueda_sin_router": {
+    "total": 50,
+    "aciertos": 40,
+    "exactitud": 80,
+    "fallos": [
+      {
+        "consulta": "hola, hay pregavalina 75?",
+        "obtenido": null,
+        "esperado": [
+          "MED-0001",
+          "MED-0002"
+        ]
+      },
+      {
+        "consulta": "tienen losartan 50?",
+        "obtenido": null,
+        "esperado": [
+          "MED-0011",
+          "MED-0012"
+        ]
+      },
+      {
+        "consulta": "precio del escitalopram 10",
+        "obtenido": null,
+        "esperado": [
+          "MED-0013",
+          "MED-0014"
+        ]
+      },
+      {
+        "consulta": "cuanto cuesta la melatonina",
+        "obtenido": null,
+        "esperado": [
+          "MED-0005",
+          "MED-0006"
+        ]
+      },
+      {
+        "consulta": "quiero saber si hay pregabalina de 75 mg",
+        "obtenido": null,
+        "esperado": [
+          "MED-0001",
+          "MED-0002"
+        ]
+      },
+      {
+        "consulta": "buenas tardes, tendrán celecoxib 200?",
+        "obtenido": null,
+        "esperado": [
+          "MED-0009",
+          "MED-0010"
+        ]
+      },
+      {
+        "consulta": "necesito neurogab 75 por favor",
+        "obtenido": null,
+        "esperado": [
+          "MED-0002"
+        ]
+      },
+      {
+        "consulta": "hay stock de cardiosar",
+        "obtenido": null,
+        "esperado": [
+          "MED-0012"
+        ]
+      },
+      {
+        "consulta": "disculpe, ¿venden somnia?",
+        "obtenido": null,
+        "esperado": [
+          "MED-0005"
+        ]
+      },
+      {
+        "consulta": "valor del lexamind 20",
+        "obtenido": null,
+        "esperado": [
+          "MED-0016"
+        ]
+      }
+    ]
+  },
+  "busqueda_con_router": {
+    "total": 50,
+    "aciertos": 50,
+    "exactitud": 100,
+    "fallos": []
+  },
+  "router": {
+    "mensajes": 20,
+    "clasificados_correctamente": 20,
+    "exactitud_pct": 100,
+    "por_intencion": {
+      "bienvenida": 4,
+      "consulta": 5,
+      "estado": 2,
+      "estado_sin_dato": 2,
+      "reserva": 2,
+      "urgencia": 1,
+      "autolesion": 1,
+      "consejo_clinico": 1,
+      "fuera_de_dominio": 1,
+      "ambiguo": 1
+    },
+    "errores": []
+  }
+}

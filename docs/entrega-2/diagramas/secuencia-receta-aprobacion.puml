@@ -1,0 +1,47 @@
+@startuml secuencia-receta-aprobacion
+!include estilo.iuml
+title Secuencia · Receta por foto y aprobación farmacéutica (US-09 + US-20)
+
+actor Vecino
+actor "Químico\nfarmacéutico" as QF
+participant "Telegram" as TG
+participant "Router\nUS-17" as R
+participant "Recetas\nUS-09" as REC
+participant "Aprobación\nUS-20" as AP
+database "Google Sheets" as S
+database "Google Drive\n(OAuth, carpeta privada)" as D
+
+== Envío de la receta ==
+Vecino -> TG : foto con pie «#FAR-0001»
+TG -> R : webhook (secreto)
+R -> REC : Execute Workflow (intent = receta)
+activate REC
+REC -> S : leer ordenes
+REC -> REC : build_action(): titularidad (mismo chat)\ny estado PENDIENTE_RECETA
+REC -> TG : getFile + descarga /file/bot<token>/<ruta>
+REC -> D : subir «receta-FAR-0001-<fecha>.jpg»
+REC -> S : ordenes: url_receta, fecha_receta,\nestado RECETA_RECIBIDA
+REC -> S : bitacora RECETA_RECIBIDA (actor cliente:<chat_id>)
+REC -> TG : al vecino: «Recibimos la receta… un químico\nfarmacéutico la revisará»
+REC -> TG : al farmacéutico: «Nueva receta #FAR-0001 … enlace …\nresponda aprobar/rechazar» (sin RUT)
+deactivate REC
+
+== Decisión del químico farmacéutico ==
+QF -> TG : «aprobar FAR-0001» (o «rechazar FAR-0001 motivo»)
+TG -> R : webhook (secreto)
+R -> R : chat en TELEGRAM_PHARMACIST_CHAT_IDS
+R -> AP : Execute Workflow (intent = aprobacion)
+activate AP
+AP -> S : leer ordenes e inventario
+AP -> AP : evaluate_approval(): solo desde RECETA_RECIBIDA\n(el estado de origen es la guarda de idempotencia)
+alt aprobar
+  AP -> S : ordenes.estado = EN_PREPARACION
+else rechazar
+  AP -> S : ordenes.estado = RECHAZADO
+  AP -> S : inventario: stock_reservado − cantidad (una vez)
+end
+AP -> S : bitacora RECETA_APROBADA / RECETA_RECHAZADA\n(actor farmaceutico:<chat_id>)
+AP -> TG : aviso al vecino
+AP -> TG : confirmación al farmacéutico
+deactivate AP
+@enduml
