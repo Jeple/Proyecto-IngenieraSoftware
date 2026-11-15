@@ -51,9 +51,9 @@ No son issues: #22, #23, #25, #26 y #27 son pull requests fusionados. Fuente de 
 
 ## 3. Mapeo recomendado issue → estado del tablero
 
-Criterio: el estado «Done» exige DoD completa: PR fusionado, verificación por una persona distinta de quien desarrolló y evidencia (capturas, *execution id*). Al 15-nov los PR #25/#26 están fusionados y la verificación técnica está hecha (413/413 el 15-nov a las 17:27 — [resumen](../evidencia/pruebas-unitarias/2026-11-15-17-27-resumen.md) —, integración 14/14 y E2E 17/17 el 9-nov — [reporte](../evidencia/e2e/e2e-2026-11-09-22-10.md) —), pero **la verificación formal de otro integrante y las capturas siguen pendientes**. Recomendación: mantener las tarjetas en **In Review** hasta cerrar ese paso y pasarlas a Done después; la tabla muestra el destino sugerido para que la decisión del equipo sea explícita.
+Criterio: el estado «Done» exige DoD completa: PR fusionado, verificación por una persona distinta de quien desarrolló y evidencia (capturas, *execution id*). Al 15-nov los PR #25/#26 están fusionados y la verificación técnica está hecha (413/413 el 15-nov a las 17:27 — [resumen](../evidencia/pruebas-unitarias/2026-11-15-17-27-resumen.md) —, integración 14/14 y E2E 17/17 el 9-nov — [reporte](../evidencia/e2e/e2e-2026-11-09-22-10.md) —), pero **la verificación formal de otro integrante y las capturas siguen pendientes**. Recomendación: mantener las tarjetas en **In Review** hasta cerrar ese paso y pasarlas a Done después. La columna **Destino final** de la tabla es el estado a alcanzar al cerrar la verificación, **no** el estado actual; mientras falten capturas o verificación, la captura «después» puede mostrar In Review y eso se anota al pie.
 
-| Issue | Historia | SP | Estado del issue (verificado) | Estado recomendado | Acción | Respaldo |
+| Issue | Historia | SP | Estado del issue (verificado) | Destino final (tras capturas y verificación) | Acción | Respaldo |
 |---|---|---|---|---|---|---|
 | #6 | US-04 | 5 | CLOSED 16-oct (comentario del merge 15-nov) | **Done** | Verificar tarjeta; no reabrir | PR #26; CA-01 a CA-03 |
 | #7 | US-05 | 5 | OPEN | **Done** → cerrar | Mover tarjeta y cerrar | 79 pruebas; CA-04 a CA-06, CA-20 |
@@ -148,7 +148,7 @@ gh issue list --repo Jeple/Proyecto-IngenieraSoftware --state open --limit 30
 
 ## 8. Criterio de aceptación de la evidencia
 
-- [ ] Las **11 historias fusionadas y verificadas están en Done**: US-04 (#6), US-05 (#7), US-06 (#8), US-09 (#11), US-10 (#12), US-20 (#18), T-01 (#19), US-21 (#20), T-02 (#21), US-17 (#28) y US-22 (#29).
+- [ ] Las **11 historias fusionadas están en Done una vez adjuntas las capturas y registrada la verificación**: US-04 (#6), US-05 (#7), US-06 (#8), US-09 (#11), US-10 (#12), US-20 (#18), T-01 (#19), US-21 (#20), T-02 (#21), US-17 (#28) y US-22 (#29). Si falta alguna captura, la tarjeta puede quedar en In Review y se anota la razón.
 - [ ] **#28 y #29 creados**, agregados al proyecto y en la iteración Sprint 2.
 - [ ] **#9, #10 y #13 cerrados como no planificados**; #10 y #13 con `fuera-de-alcance`; #24 con `wont-este-semestre`.
 - [ ] Iteraciones renombradas **Sprint 0/1/2/3** y cada tarjeta en su iteración (sin tarjetas huérfanas ni duplicadas).
