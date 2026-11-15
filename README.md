@@ -4,7 +4,7 @@ Asistente de chat para la Farmacia Comunitaria de la Municipalidad de Peñalolé
 
 > **Alcance firmado (Entrega 2):** consulta, reserva, receta con aprobación farmacéutica, liberación a las 12 h, estado del pedido, router de un solo chat y despacho marcado por el personal. **Fuera de este semestre:** agente de voz, app del conductor con ETA y canal WhatsApp (adaptador futuro). Detalle en `docs/entrega-2/backlog-actualizado.md`.
 
-**Empezar aquí:** [guía de instalación local](docs/guia-instalacion-local.md) · [documentación de la Entrega 2](docs/entrega-2/) · [plan de aceptación](docs/plan-pruebas-aceptacion.md) · [CHANGELOG](CHANGELOG.md)
+**Empezar aquí:** [guía de instalación local](docs/guia-instalacion-local.md) · [documentación de la Entrega 2](docs/entrega-2/) · [checklist de la Entrega 2](docs/entrega-2/checklist-entrega-2.md) · [plan de aceptación](docs/plan-pruebas-aceptacion.md) · [CHANGELOG](CHANGELOG.md)
 
 ## Problema
 
