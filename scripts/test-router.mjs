@@ -38,7 +38,7 @@ function check(label, cond, detail) {
 
 const SECRET = 'secreto-test';
 const H = { 'X-Telegram-Bot-Api-Secret-Token': SECRET };
-const ENV = { secret: SECRET, pharmacists: '900', staff: '901', geminiKey: '' };
+const ENV = { secret: SECRET, pharmacists: '900', staff: '901', nvidiaKey: '', geminiKey: '' };
 const upd = (chat, text, extra = {}) => ({ update_id: 1, message: { message_id: 1, date: 1794240000, chat: { id: chat }, text, ...extra } });
 const cls = (text, chat = 100, env = ENV, extra = {}) => R.classifyUpdate(upd(chat, text, extra), H, env);
 
@@ -73,7 +73,7 @@ check('2k hola -> bienvenida', cls('hola').motivo === 'bienvenida' && cls('hola'
 check('2l /start -> bienvenida', cls('/start').motivo === 'bienvenida');
 check('2m "buenas tardes!" -> bienvenida', cls('buenas tardes!').motivo === 'bienvenida');
 check('2n reservar ... -> reserva', cls('reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto').intent === 'reserva');
-check('2o "hola, quiero reservar" -> reserva', cls('hola, quiero reservar losarmed 50 x2 rut 11.111.111-1, Calle 1, San Luis').intent === 'reserva');
+check('2o "hola, quiero reservar" -> reserva', cls('hola, quiero reservar losarmed 50 x2 rut 11.111.111-1, Calle 1, San Luis').intent === 'reserva' && cls('quiero dos somnia').intent === 'reserva' && cls('necesito 3 cajas de somnia').intent === 'reserva' && cls('quiero saber si hay 2 cajas de somnia').intent === 'consulta');
 check('2p "el estado de mi reserva FAR-0002" NO es reserva', cls('el estado de mi reserva FAR-0002').intent === 'estado');
 check('2q código FAR -> estado', cls('estado #FAR-0002').intent === 'estado');
 check('2r RUT -> estado', cls('mi rut es 11.111.111-1').intent === 'estado');
@@ -99,7 +99,7 @@ check('4a limpiarConsulta quita saludo y muletillas', R.limpiarConsulta('hola, �
 check('4b conserva dosis y unidad', R.limpiarConsulta('quiero saber si hay pregabalina de 75 mg') === 'pregabalina 75 mg', R.limpiarConsulta('quiero saber si hay pregabalina de 75 mg'));
 check('4c "precio del escitalopram 10"', R.limpiarConsulta('precio del escitalopram 10') === 'escitalopram 10');
 check('4d normalizarReserva desde la palabra clave', R.normalizarReserva('hola quiero reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto') === 'reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto', R.normalizarReserva('hola quiero reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto'));
-check('4e "2 cajas de" -> x2', R.normalizarReserva('reservar 2 cajas de neurogab 75 rut 11.111.111-1, Calle 1, San Luis').startsWith('reservar x2 neurogab 75'), R.normalizarReserva('reservar 2 cajas de neurogab 75 rut 11.111.111-1, Calle 1, San Luis'));
+check('4e "2 cajas de" -> x2', R.normalizarReserva('reservar 2 cajas de neurogab 75 rut 11.111.111-1, Calle 1, San Luis').startsWith('reservar x2 neurogab 75') && R.normalizarReserva('reservar somnia por dos').startsWith('reservar somnia x2') && R.normalizarReserva('reservar somnia cantidad dos').startsWith('reservar somnia x2') && R.normalizarReserva('quiero dos somnia').startsWith('x2 somnia'), R.normalizarReserva('reservar somnia por dos'));
 check('4f "apartar" se normaliza a reservar', R.normalizarReserva('apartar losarmed 50 x1 rut 11.111.111-1, Calle 1, San Luis').startsWith('reservar '));
 check('4g la dirección y el sector no se tocan', R.normalizarReserva('reservar neurogab 75 x1 rut 11.111.111-1, Pasaje La Estrella de Mar 12, Peñalolén Nuevo').endsWith(', Pasaje La Estrella de Mar 12, Peñalolén Nuevo'));
 check('4h el body reenviado lleva el texto limpio', cls('hola, ¿hay pregavalina 75?').body.message.text === 'pregavalina 75');
@@ -147,7 +147,7 @@ check('6c US-06 recibe el código', p06.length === 1 && (p06[0].json || p06[0]).
 check('6d US-20 acepta el comando que el router deriva', P20.parseTelegramUpdate(cls('aprobar FAR-0003', 900).body, H, SECRET, '900').length === 1);
 check('6e US-22 acepta el comando que el router deriva', P22.parseTelegramUpdate(cls('entregado FAR-0003', 901).body, H, SECRET, '901', '900').length === 1);
 
-// 7. Respaldo opcional con Gemini (solo etiqueta de lista cerrada)
+// 7. Respaldo opcional con LLM (NVIDIA NIM; solo etiqueta de lista cerrada)
 const gem = (t) => ({ candidates: [{ content: { parts: [{ text: t }] } }] });
 check('7a etiqueta válida', L.etiquetaDesdeGemini(gem('consulta')) === 'consulta');
 check('7b etiqueta con mayúsculas y punto', L.etiquetaDesdeGemini(gem('Estado.')) === 'estado');
@@ -157,10 +157,10 @@ const amb = cls('necesito hablar con alguien de la oficina sobre un tema de mi a
 check('7e sin etiqueta se mantiene el menú', L.aplicarEtiqueta(amb, null).intent === 'respuesta' && L.aplicarEtiqueta(amb, null).reply === amb.reply);
 check('7f etiqueta urgencia -> texto fijo con SAMU', L.aplicarEtiqueta(amb, 'urgencia').reply.includes('SAMU 131'));
 check('7g etiqueta consulta -> deriva a US-04', L.aplicarEtiqueta(amb, 'consulta').intent === 'consulta');
-check('7h llm_disponible solo con clave', cls('hola').llm_disponible === false && cls('hola', 100, { ...ENV, geminiKey: 'x' }).llm_disponible === true);
-const gNode = router.nodes.find((n) => n.name === 'gemini_clasificar');
-check('7i la llamada a Gemini no detiene el flujo si falla', gNode && gNode.onError === 'continueRegularOutput');
-check('7j la clave de Gemini viaja en encabezado, no en la URL', gNode && !/key=/.test(gNode.parameters.url) && JSON.stringify(gNode.parameters.headerParameters).includes('x-goog-api-key'));
+check('7h llm_disponible solo con clave (NVIDIA o Gemini)', cls('hola').llm_disponible === false && cls('hola', 100, { ...ENV, nvidiaKey: 'nvapi-x' }).llm_disponible === true && cls('hola', 100, { ...ENV, geminiKey: 'x' }).llm_disponible === true);
+const gNode = router.nodes.find((n) => n.name === 'llm_clasificar');
+check('7i la llamada al LLM no detiene el flujo si falla', gNode && gNode.onError === 'continueRegularOutput');
+check('7j la clave del LLM viaja en Authorization, no en la URL', gNode && !/key=/i.test(gNode.parameters.url) && /integrate\.api\.nvidia\.com/.test(gNode.parameters.url) && JSON.stringify(gNode.parameters.headerParameters).includes('Bearer ') && JSON.stringify(gNode.parameters.headerParameters).includes('NVIDIA_API_KEY'));
 
 console.log('----------------------------------------');
 console.log(`SUMMARY: ${passed} passed, ${failed} failed, ${passed + failed} total`);

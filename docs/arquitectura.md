@@ -2,7 +2,7 @@
 
 Visión técnica del prototipo de la Farmacia Comunitaria de Peñalolén: un orquestador n8n 2.44.2, autoalojado en Docker y publicado mediante Cloudflare Tunnel, que atiende el canal Telegram con **un único webhook y un router de intenciones**, persiste el estado operativo en Google Sheets y resguarda las recetas en Google Drive. Todo el diseño se sostiene sobre capas gratuitas ($0 USD) y sin dependencias del ERP SAP (RNF-05, exclusión explícita del alcance).
 
-> **Actualización Entrega 2 (9-nov-2026).** Este documento refleja el sistema real. La voz (Vapi), la app del conductor con OSRM y el canal WhatsApp quedaron **fuera del alcance firmado**; Gemini es **opcional** y solo elige una etiqueta para mensajes ambiguos (nunca redacta respuestas). Los diagramas UML (componentes, despliegue, estados y seis secuencias) están en [`entrega-2/diagramas/`](./entrega-2/diagramas/) y las decisiones en [`entrega-2/decisiones-diseno.md`](./entrega-2/decisiones-diseno.md).
+> **Actualización Entrega 2 (9-nov-2026).** Este documento refleja el sistema real. La voz (Vapi), la app del conductor con OSRM y el canal WhatsApp quedaron **fuera del alcance firmado**; el LLM (NVIDIA NIM; Gemini como alternativa) es **opcional** y solo elige una etiqueta para mensajes ambiguos (nunca redacta respuestas). Los diagramas UML (componentes, despliegue, estados y seis secuencias) están en [`entrega-2/diagramas/`](./entrega-2/diagramas/) y las decisiones en [`entrega-2/decisiones-diseno.md`](./entrega-2/decisiones-diseno.md).
 
 ## Diagrama de componentes
 
@@ -27,7 +27,7 @@ flowchart LR
 
     Sheets["Google Sheets (catálogo, inventario, órdenes, despachos, bitácora)"]
     Drive["Google Drive · carpeta privada del responsable (recetas, OAuth2)"]
-    Gemini["Gemini (opcional: solo etiqueta)"]
+    Gemini["NVIDIA NIM / Gemini (opcional: solo etiqueta)"]
 
     Vecino --> TG
     Personal --> TG
@@ -51,7 +51,7 @@ El canal de texto se migró de WhatsApp Cloud API a Telegram Bot API en el Sprin
 |---|---|---|
 | Orquestación | n8n 2.44.2 (Docker) | Router US-17 y subflujos US-04, US-05, US-06, US-09, US-10, US-20, US-21 y US-22; una ejecución de producción a la vez (RNF-04, `N8N_CONCURRENCY_PRODUCTION_LIMIT=1`) |
 | Datos | Google Sheets | Catálogo, inventario, órdenes, despachos y bitácora; libro preparado por `scripts/local/cargar-catalogo.mjs` (o `scripts/setup-sheets.gs`) |
-| Búsqueda e intención | Reglas deterministas en n8n; Gemini opcional | Búsqueda difusa sin LLM (R-02); el LLM, si hay clave, solo elige la etiqueta de un mensaje ambiguo |
+| Búsqueda e intención | Reglas deterministas en n8n; LLM (NVIDIA NIM) opcional | Búsqueda difusa sin LLM (R-02); el LLM, si hay clave, solo elige la etiqueta de un mensaje ambiguo |
 | Canal | Telegram Bot API | Entrada y salida del vecino y del personal (RNF-01). Voz y WhatsApp: fuera del alcance firmado |
 | Logística | Comandos del personal por Telegram (US-22) | Estados `EN_RUTA` y `ENTREGADO`. La PWA con OSRM queda como prototipo en modo demostración |
 | Exposición | Cloudflare Tunnel | Publica n8n sin abrir puertos en el host (RNF-03) |

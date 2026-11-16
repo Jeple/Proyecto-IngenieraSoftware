@@ -56,6 +56,8 @@ services:
       - TELEGRAM_STAFF_CHAT_IDS=${TELEGRAM_STAFF_CHAT_IDS:-}
       - TELEGRAM_ADMIN_CHAT_ID=${TELEGRAM_ADMIN_CHAT_ID:-}
       - TELEGRAM_API_BASE=${TELEGRAM_API_BASE:-https://api.telegram.org}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - NVIDIA_MODEL=${NVIDIA_MODEL:-nvidia/nemotron-3.5-bolt-e4b}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
     healthcheck:

@@ -123,7 +123,7 @@ Abra `.env` (en la raíz del proyecto) con el Bloc de notas y complete, **sin co
 | `TELEGRAM_STAFF_CHAT_IDS` | Opcional. Si queda vacío, el farmacéutico también marca los despachos |
 | `GOOGLE_SHEET_ID` | ID de la planilla (paso 5) |
 | `GOOGLE_DRIVE_RECETAS_FOLDER_ID` | ID de la carpeta de recetas en su Drive (paso 6.1) |
-| `GEMINI_API_KEY` | Opcional. Sin clave, el router usa solo reglas |
+| `NVIDIA_API_KEY` | Opcional. Habilita el LLM del router (NVIDIA NIM) para mensajes ambiguos; sin clave se usan solo reglas. Alternativa: `GEMINI_API_KEY` |
 
 Guarde y **vuelva a ejecutar el comando del paso 7**. Esta vez:
 

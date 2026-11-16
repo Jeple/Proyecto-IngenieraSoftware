@@ -33,7 +33,7 @@ El prefijo corresponde a la historia que **origina** el flujo. Si una historia p
 
 ## Credenciales
 
-**Los exportes de n8n nunca incluyen credenciales.** Cada desarrollador configura las suyas propias (Google Sheets/Drive, Telegram Bot API, Gemini, Vapi) en su instancia local de n8n, siguiendo el [Quickstart del README](../README.md). Los identificadores compartidos (por ejemplo `GOOGLE_SHEET_ID`) se toman del archivo `.env` local; los secretos nunca se commitean.
+**Los exportes de n8n nunca incluyen credenciales.** Cada desarrollador configura las suyas propias (Google Sheets/Drive, Telegram Bot API; el LLM NVIDIA NIM es opcional) en su instancia local de n8n, siguiendo el [Quickstart del README](../README.md). Los identificadores compartidos (por ejemplo `GOOGLE_SHEET_ID`) se toman del archivo `.env` local; los secretos nunca se commitean.
 
 Toda la mensajería del sistema pasa por **Telegram Bot API**. El bot tiene **un solo webhook** (`/webhook/telegram-bot`, router US-17); los subflujos se invocan internamente con *Execute Workflow* y el destinatario de cada respuesta es el `chat_id` del usuario.
 
@@ -60,7 +60,7 @@ Historias de calidad sin workflow propio (US-01, US-02, US-03, US-07, US-12, US-
 
 ### Notas sobre US-04 (`US-04-consulta-stock.json`)
 
-- **US-04 es deliberadamente sin LLM:** no contiene nodos Gemini ni otros modelos de lenguaje. Como la respuesta se arma solo con datos leídos de las hojas `catalogo`/`inventario`, el grounding de RF-01 (nunca inventar nombres, precios ni stock) es **estructural**, no depende de un prompt.
+- **US-04 es deliberadamente sin LLM:** no contiene nodos de LLM (NVIDIA NIM/Gemini) ni otros modelos de lenguaje. Como la respuesta se arma solo con datos leídos de las hojas `catalogo`/`inventario`, el grounding de RF-01 (nunca inventar nombres, precios ni stock) es **estructural**, no depende de un prompt.
 - **Entrada:** el router (US-17) la invoca con el texto ya normalizado (sin saludos ni muletillas).
 - **Prueba local:** `node scripts/test-fuzzy-match.mjs` (Node ≥ 18, sin dependencias); la CI la ejecuta tras validar el JSON.
 

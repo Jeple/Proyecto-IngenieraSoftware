@@ -49,3 +49,7 @@ presentacion/n8n-demo/n8n-data/
 
 # Agent tooling state (generated, contains absolute machine paths)
 .atl/
+
+# Agent tooling local (no se versiona)
+.agent/
+.scratch/

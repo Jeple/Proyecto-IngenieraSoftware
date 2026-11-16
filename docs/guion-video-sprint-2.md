@@ -86,7 +86,7 @@
 
 **Cuentas y entorno (la noche anterior y 30 min antes):**
 - [ ] `bash scripts/local/levantar.sh` (o `.ps1`) sin errores y `node scripts/local/doctor.mjs` **sin ninguna línea «FALTA»**.
-- [ ] `.env` completo: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_PHARMACIST_CHAT_IDS`, `TELEGRAM_ADMIN_CHAT_ID`, `GOOGLE_SHEET_ID`, `GOOGLE_DRIVE_RECETAS_FOLDER_ID`; Gemini es opcional.
+- [ ] `.env` completo: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_PHARMACIST_CHAT_IDS`, `TELEGRAM_ADMIN_CHAT_ID`, `GOOGLE_SHEET_ID`, `GOOGLE_DRIVE_RECETAS_FOLDER_ID`; El LLM (NVIDIA NIM) es opcional.
 - [ ] `node scripts/local/cargar-catalogo.mjs --reiniciar` (16 medicamentos sintéticos, pedidos vacíos, Pregalex 75 mg sin stock).
 - [ ] Credencial «Google Drive (OAuth)» conectada y verificada por `doctor` (si venció a los 7 días, reconectar en n8n).
 - [ ] Bot de Telegram con nombre de prueba; dos cuentas: A (vecino) y B (farmacéutico/personal). Nunca usar la cuenta personal con historial real.
@@ -186,7 +186,7 @@ La IA acelera la edición, pero **no reemplaza la demo**: las respuestas del bot
 | Usuarios inscritos en la farmacia | 43.089 | [README §Problema](../README.md) |
 | Boletas emitidas al año | 39.212 | [README §Problema](../README.md) |
 | Transacciones presenciales | 81 % | [README §Problema](../README.md) |
-| Costo de infraestructura | $0 USD (capas gratuitas; Gemini opcional) | RNF-05, [README §Stack](../README.md) |
+| Costo de infraestructura | $0 USD (capas gratuitas; LLM NVIDIA NIM opcional) | RNF-05, [README §Stack](../README.md) |
 | Historias del incremento | 9 historias + 3 frentes transversales | [backlog §2](entrega-2/backlog-actualizado.md) |
 | Flujos de n8n publicados | 9 | [guía §8](guia-instalacion-local.md) |
 | Medicamentos sintéticos | 16 | [guía §9](guia-instalacion-local.md) |
