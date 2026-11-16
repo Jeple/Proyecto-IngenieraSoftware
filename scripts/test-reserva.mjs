@@ -201,7 +201,11 @@ check('8d query free of the intent keyword', !/\breservar\b/i.test(parsed.query)
 const parsedParseNode = parseApi.parseReservationText(sample);
 check('8e parse_reservation copy agrees with evaluate_reservation copy', JSON.stringify(parsed) === JSON.stringify(parsedParseNode), JSON.stringify(parsedParseNode));
 const parsed2 = api.parseReservationText('comprar omeprazol 20');
-check('8f intent stripped, quantity defaults to 1', parsed2.query === 'omeprazol 20' && parsed2.quantity === 1, JSON.stringify(parsed2));
+const porDos = api.parseReservationText('reservar somnia por dos');
+const cantDos = api.parseReservationText('reservar somnia cantidad dos');
+const quieroDos = api.parseReservationText('quiero dos somnia');
+const dosPrimero = api.parseReservationText('reservar dos somnia');
+check('8f intent stripped, quantity defaults to 1 (y frases naturales con cantidad)', parsed2.query === 'omeprazol 20' && parsed2.quantity === 1 && porDos.query === 'somnia' && porDos.quantity === 2 && cantDos.query === 'somnia' && cantDos.quantity === 2 && quieroDos.query === 'somnia' && quieroDos.quantity === 2 && dosPrimero.query === 'somnia' && dosPrimero.quantity === 2, JSON.stringify({ parsed2, porDos, cantDos, quieroDos, dosPrimero }));
 const parsed3 = api.parseReservationText('encargar metformina 850 u');
 check('8g "u" suffix quantity form', parsed3.quantity === 850 && parsed3.query === 'metformina', JSON.stringify(parsed3));
 

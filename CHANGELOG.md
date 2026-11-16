@@ -10,7 +10,8 @@ Cambios relevantes por sprint. Formato basado en [Keep a Changelog](https://keep
   - Reglas deterministas y normalización del texto (saludos, muletillas, «2 cajas» → `x2`).
   - Respuestas fijas de seguridad clínica (SAMU 131, línea \*4141, sin consejo médico).
   - Respuesta para preguntas fuera del dominio.
-  - Gemini opcional, que solo elige una etiqueta de una lista cerrada.
+  - LLM opcional (NVIDIA NIM, API OpenAI-compatible; Gemini como alternativa) que solo elige una etiqueta de una lista cerrada. Sin clave, el router usa solo reglas.
+  - US-05: cantidades en lenguaje natural ("por dos", "cantidad dos", "quiero dos somnia", "reservar dos somnia"); el router deriva las compras con cantidad a la reserva y pide los datos que falten.
   - Aviso al vecino si un subflujo falla.
 - **US-22 · Despacho marcado por el personal** (`workflows/US-22-despacho-personal.json`):
   - Comandos «en ruta» y «entregado», con lista blanca.

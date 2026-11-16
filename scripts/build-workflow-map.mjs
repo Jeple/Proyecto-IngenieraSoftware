@@ -137,7 +137,7 @@ const NODE_LABELS = {
   entrada_manual: 'Ejecución a demanda',
   clasificar: 'Entiende la intención',
   si_ambiguo_y_llm: '¿Es ambiguo?',
-  gemini_clasificar: 'Pide una etiqueta a Gemini',
+  llm_clasificar: 'Pide una etiqueta al LLM (NVIDIA NIM)',
   aplicar_llm: 'Aplica la etiqueta',
   derivar: '¿A qué flujo va?',
   ir_consulta: 'Consulta de stock',

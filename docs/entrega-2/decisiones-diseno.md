@@ -38,12 +38,12 @@ Formato breve de *Architecture Decision Record*: contexto, decisión, alternativ
   - Cada subflujo vuelve a validar el secreto (defensa en profundidad).
   - Los subflujos se pueden probar por separado.
 
-### ADR-06 · Reglas primero; Gemini solo como respaldo para elegir una etiqueta
+### ADR-06 · Reglas primero; LLM solo como respaldo para elegir una etiqueta
 - **Contexto:** el buscador no reconocía frases naturales: «hola, ¿hay pregavalina 75?» obtenía 0,457 con un umbral de 0,72. Ese era el ejemplo exacto mostrado a la Municipalidad.
 - **Decisión:**
   - El router normaliza el texto: quita saludos y muletillas y convierte «2 cajas» en `x2`.
   - Clasifica con reglas en un orden fijo: foto, comandos del personal, seguridad clínica, saludo, reserva, estado y consulta.
-  - Solo un texto largo que no calza con ninguna regla se envía a Gemini, si hay clave. Gemini devuelve **una etiqueta de una lista cerrada** y nunca redacta la respuesta.
+  - Solo un texto largo que no calza con ninguna regla se envía al LLM, si hay clave: NVIDIA NIM (API OpenAI-compatible) es el proveedor principal y Gemini queda como alternativa. El modelo devuelve **una etiqueta de una lista cerrada** y nunca redacta la respuesta.
   - Sin clave, falla o etiqueta inválida, el router responde con el menú de ayuda.
 - **Alternativas:** clasificar todo con un LLM, que agregaba latencia, costo potencial y el riesgo R-02.
 - **Consecuencias:** las 5 frases naturales de prueba pasan a calzar (`test-router.mjs`, bloque 5). El LLM es opcional y está acotado.

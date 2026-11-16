@@ -20,7 +20,7 @@ La Farmacia Comunitaria de Peñalolén atiende a **43.089 usuarios** inscritos y
 | Telegram Bot API | Canal de mensajería del vecino y del personal | Gratis: mensajes ilimitados mediante un bot |
 | Google Sheets | Base de datos operativa (catálogo, inventario, órdenes) | Incluida con cuenta de Google |
 | Google Drive | Resguardo de recetas médicas (permisos restringidos) | Incluida con cuenta de Google |
-| Gemini (opcional) | Solo elige una etiqueta para mensajes ambiguos; nunca redacta respuestas (R-02) | Free tier de Google AI Studio |
+| NVIDIA NIM (LLM opcional) | Solo elige una etiqueta para mensajes ambiguos; nunca redacta respuestas (R-02). Gemini queda como alternativa | Capa gratuita de NVIDIA Build; Gemini free tier como respaldo |
 | Cloudflare Tunnel | Publicación de n8n sin abrir puertos (túnel rápido sin cuenta en local) | Gratuito |
 | Google Apps Script | Inicialización del libro de datos | Incluida con cuenta de Google |
 | GitHub + GitHub Actions | Repositorio, tablero y CI | Gratuito para repositorios públicos |
@@ -59,7 +59,7 @@ Nota de alcance: el prototipo se mantiene desacoplado de SAP (exclusión explíc
 
 - **Docker Desktop** (o Docker Engine + Docker Compose v2) y **Node.js 18 o superior**.
 - **Cuenta de Telegram** para crear el bot con @BotFather.
-- **Cuenta de Google** (Sheets y Drive, más una cuenta de servicio y un cliente OAuth). La clave de Gemini es **opcional**: sin ella el router usa solo reglas.
+- **Cuenta de Google** (Sheets y Drive, más una cuenta de servicio y un cliente OAuth). La clave de **NVIDIA NIM** es **opcional**: sin ella el router usa solo reglas; Gemini queda como alternativa.
 - **Túnel de Cloudflare:** el túnel rápido no necesita cuenta. Una cuenta con Zero Trust solo hace falta para el túnel con nombre (opcional, ver `docs/n8n-despliegue.md`).
 - **Cuenta de GitHub** con acceso al repositorio y al tablero del proyecto.
 
@@ -83,7 +83,7 @@ Pruebas: `node scripts/correr-pruebas.mjs` (413 pruebas) y `node scripts/local/p
 2. **Crear el archivo de entorno**: `copy .env.example .env` (cmd) o `Copy-Item .env.example .env` (PowerShell), y completar cada clave según los comentarios del archivo. El archivo `.env` real nunca se commitea.
 3. **Crear el libro de datos**: ejecutar `scripts/setup-sheets.gs` en Google Apps Script (Extensiones → Apps Script → pegar el código → Ejecutar `setupSpreadsheet`). Copiar el ID del libro resultante a `GOOGLE_SHEET_ID` en `.env`, colocar el JSON de service-account en `secrets/` y registrar su ruta en `GOOGLE_SERVICE_ACCOUNT_FILE`. Borrar las filas de ejemplo antes de cargar el catálogo oficial.
 4. **Levantar los servicios**: `docker compose up -d`. Modo local sin túnel: `docker compose up n8n` y abrir <http://localhost:5678>.
-5. **Abrir n8n y crear credenciales** (Google Sheets/Drive, Gemini, Vapi) con las cuentas propias de cada desarrollador, y crear el bot de Telegram con **@BotFather** para obtener el token: copiar ese token en `TELEGRAM_BOT_TOKEN` y elegir un secreto de webhook arbitrario (una cadena aleatoria cualquiera) en `TELEGRAM_WEBHOOK_SECRET`, ambos en `.env`. Los exportes de workflows nunca incluyen credenciales.
+5. **Abrir n8n y crear credenciales** (Google Sheets/Drive) con las cuentas propias de cada desarrollador; el LLM (NVIDIA NIM) es opcional y viaja por `.env`, y crear el bot de Telegram con **@BotFather** para obtener el token: copiar ese token en `TELEGRAM_BOT_TOKEN` y elegir un secreto de webhook arbitrario (una cadena aleatoria cualquiera) en `TELEGRAM_WEBHOOK_SECRET`, ambos en `.env`. Los exportes de workflows nunca incluyen credenciales.
 
 ## Modelo de ramas
 
