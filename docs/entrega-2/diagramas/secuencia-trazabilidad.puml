@@ -19,7 +19,7 @@ E -> S : leer ordenes y despachos
 S --> E : filas
 E -> E : filtra por titularidad:\nordenes.telefono == chat_id del mensaje
 alt pedido propio encontrado
-  E -> TG : «Tu pedido #FAR-0001 va en camino.»
+  E -> TG : «Su pedido #FAR-0001 va en camino.»
 else inexistente o ajeno
   E -> TG : «No encontré ese pedido…» (mismo texto en ambos casos)
 end

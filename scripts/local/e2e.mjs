@@ -177,7 +177,7 @@ async function main() {
     });
     await caso('CA-07', 'Estado por RUT del titular', async () => {
       const x = await decir(A, `estado ${RUT}`);
-      return { ok: contiene(x.textos, 'Tu pedido #FAR-'), detalle: `«${(x.textos[0] || '').slice(0, 90)}»` };
+      return { ok: contiene(x.textos, 'Su pedido #FAR-'), detalle: `«${(x.textos[0] || '').slice(0, 90)}»` };
     });
     await caso('CA-08', 'Titularidad: otro chat no ve el pedido', async () => {
       const x = await decir(CHAT_B, 'estado #FAR-0001');
