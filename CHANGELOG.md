@@ -2,6 +2,29 @@
 
 Cambios relevantes por sprint. Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). Las versiones corresponden a los tags de cada sprint (líneas base).
 
+## [0.1.0] · Sprint 3 · primera versión del producto (cierre del semestre, diciembre de 2026)
+
+Versión v0.1 del producto: el alcance firmado completo, con las correcciones y la calidad del Sprint 3. La numeración semántica empieza aquí; las etiquetas `v0.1-sprint1` y `v0.2-sprint2` quedan como líneas base de los sprints anteriores.
+
+### Agregado
+- Pruebas de los 4 nodos de mapeo de US-10 (`expand_orders`, `expand_inventory`, `emit_bitacora`, `emit_notifications`) y del ensamblado de `find_expired` con un `$` simulado. La cobertura de nodos Code (Q15) sube de 19/23 a 23/23.
+- `scripts/medir-cobertura-nodos.mjs`: mide Q15 de forma reproducible.
+- `scripts/local/prueba-concurrencia.mjs` acepta `--n` y `--stock`, para la carga de US-13 (20 reservas sobre stock 10).
+- Documentación de cierre en `docs/entrega-final/`: arquitectura con diagrama de contexto, dos decisiones explicadas con GRASP y SOLID, manual de uso, guía de continuidad, ambiente preproductivo, calidad de la v0.1 y métricas del proyecto.
+- Plantillas de GitHub para historias de usuario, errores y pull requests.
+
+### Cambiado
+- US-14: todos los mensajes al vecino tratan de «usted» (US-05, US-06, US-09, US-10 y US-20; el router y el despacho ya lo hacían).
+- Matriz de riesgos: RS-05 pasa a Alto porque se materializó (credenciales compartidas por el chat del equipo; se rotan al cierre de la evaluación) y el Excel nombra a NVIDIA NIM en RS-08, igual que el Markdown.
+
+### Corregido
+- **D-19** · US-06: con la receta recibida, el estado decía «Ya pasa a preparación», aunque falta la aprobación del químico farmacéutico.
+- **D-20** · US-06: un pedido rechazado aparecía «en revisión»; ahora dice que fue rechazado.
+- **D-21** · US-17: con «quiero» o «necesito», el router tomaba la dosis como cantidad («necesito neurogab 75») y mandaba la consulta a la reserva, que pedía RUT y dirección. Venía del PR #32. La exactitud de la búsqueda con router había bajado a 98 % (49/50) y vuelve a 100 % (50/50).
+
+### Pruebas
+- 422 pruebas automáticas en 14 suites, todas en verde (eran 413).
+
 ## [0.2.0-sprint2] · Entrega 2 (15 de noviembre de 2026)
 
 ### Agregado

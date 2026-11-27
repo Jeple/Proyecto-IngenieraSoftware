@@ -65,8 +65,8 @@ const catalog = [makeOrder()];
 const noDispatches = [];
 
 const NOT_FOUND =
-  'No encontré ese pedido. Revisa el código #FAR-XXXX o tu RUT e inténtalo de nuevo.';
-const FALLBACK = 'Tu pedido #FAR-0001 está en revisión. Consulta en la farmacia.';
+  'No encontré ese pedido. Revise el código #FAR-XXXX o su RUT e inténtelo de nuevo.';
+const FALLBACK = 'Su pedido #FAR-0001 está en revisión. Consulte en la farmacia.';
 
 // ---------------------------------------------------------------------------
 // Tiny PASS/FAIL harness — any throw inside a check counts as FAIL.
@@ -159,8 +159,9 @@ check('6. RUT lookup picks most recent, ties broken by code number', () => {
   );
 });
 
-// 7. All six enum states produce distinct, non-empty messages with the code.
-check('7. six enum states -> six distinct non-empty messages with #FAR-0001', () => {
+// 7. All seven enum states produce distinct, non-empty messages with the code
+//    (RECHAZADO has its own message since Sprint 3; it used to fall back to "en revisión").
+check('7. seven enum states -> seven distinct non-empty messages with #FAR-0001', () => {
   const states = [
     'PENDIENTE_RECETA',
     'RECETA_RECIBIDA',
@@ -168,6 +169,7 @@ check('7. six enum states -> six distinct non-empty messages with #FAR-0001', ()
     'EN_RUTA',
     'ENTREGADO',
     'CANCELADO_EXPIRADO',
+    'RECHAZADO',
   ];
   const messages = states.map((estado) => {
     const reply = buildTrackingReply(
@@ -180,7 +182,8 @@ check('7. six enum states -> six distinct non-empty messages with #FAR-0001', ()
   return (
     messages.every((m) => typeof m === 'string' && m.length > 0 && m.includes('#FAR-0001')) &&
     messages.every((m) => !m.includes('está en revisión')) &&
-    new Set(messages).size === 6
+    messages.every((m) => !/\b(tu|tus|tienes|revisa|consulta)\b/i.test(m)) &&
+    new Set(messages).size === 7
   );
 });
 
@@ -365,6 +368,38 @@ check('18. mismo RUT, chats distintos -> cada uno ve el suyo', () => {
     Boolean(reply) &&
     reply.message.includes('#FAR-0002') &&
     !reply.message.includes('#FAR-0009')
+  );
+});
+
+// 19. Sprint 3 (D-19): RECETA_RECIBIDA must not promise preparation — the order
+//     waits for the pharmacist's approval (US-20).
+check('19. RECETA_RECIBIDA -> pharmacist reviewing, never "pasa a preparación"', () => {
+  const reply = buildTrackingReply(
+    { chat_id: '56911111111', codigo_far: '#FAR-0001' },
+    [makeOrder({ estado: 'RECETA_RECIBIDA' })],
+    noDispatches
+  );
+  return (
+    Boolean(reply) &&
+    reply.message.includes('#FAR-0001') &&
+    reply.message.includes('químico farmacéutico') &&
+    !/pasa a preparación|ya pasa/i.test(reply.message)
+  );
+});
+
+// 20. Sprint 3 (D-20): a rejected order says so instead of "en revisión".
+check('20. RECHAZADO -> says it was rejected, not "en revisión"', () => {
+  const reply = buildTrackingReply(
+    { chat_id: '56911111111', codigo_far: '#FAR-0001' },
+    [makeOrder({ estado: 'RECHAZADO' })],
+    noDispatches
+  );
+  return (
+    Boolean(reply) &&
+    reply.message.includes('#FAR-0001') &&
+    reply.message.includes('rechazado') &&
+    !reply.message.includes('en revisión') &&
+    reply.message !== FALLBACK
   );
 });
 

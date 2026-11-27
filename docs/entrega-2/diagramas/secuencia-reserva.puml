@@ -24,7 +24,7 @@ alt COMMIT
   RES -> S : append bitacora RESERVA_ALTA (actor cliente:<chat_id>)
   RES -> S : append despachos (PENDIENTE)
   RES -> S : verify_reservation (relee el inventario)
-  RES -> TG : «Reserva confirmada. Tu código es #FAR-0001 — …\nSu pedido quedó reservado por 12 horas. Envíe la foto…»
+  RES -> TG : «Reserva confirmada. Su código es #FAR-0001 — …\nSu pedido quedó reservado por 12 horas. Envíe la foto…»
 else rechazo (sin stock, sin RUT, fuera de cobertura)
   RES -> TG : mensaje guía, sin escribir nada
 end

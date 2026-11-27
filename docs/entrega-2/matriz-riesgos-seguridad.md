@@ -25,7 +25,7 @@ Marco legal: **Ley 19.628** sobre protección de la vida privada (vigente) y **L
 | RS-02 | A4, A5 | S · Suplantación | Alguien que no es químico farmacéutico ni personal envía «aprobar», «rechazar», «en ruta» o «entregado» | 3 | 4 | 12 Alto | Lista blanca de chat_id por variable de entorno; desde otro chat el comando se trata como mensaje común | test-router 2f, 2j; test-despacho 1g, 1i | 1 | 4 | 4 Bajo | Antonio De Solminihac (identidad) | Activar la verificación en dos pasos de Telegram en las cuentas del personal; revisar la bitácora semanalmente |
 | RS-03 | A1 | I · Divulgación | Un vecino consulta por RUT o código el pedido de otra persona | 3 | 4 | 12 Alto | Titularidad por chat_id (solo el chat que creó el pedido); mismo mensaje para un pedido ajeno y uno inexistente | test-trazabilidad 16–18; test-router 6c3; E2E CA-08 (9-nov, segundo chat simulado) | 1 | 4 | 4 Bajo | Antonio De Solminihac | Repetir CA-08 con un segundo teléfono real y captura |
 | RS-04 | A2 | I · Divulgación | Se filtra la foto de una receta (enlace reenviado o carpeta con permisos amplios) | 3 | 5 | 15 Crítico | Carpeta privada (sin compartir) en el Drive del responsable; subida con OAuth; el enlace solo va al químico farmacéutico; la planilla guarda la URL, no la imagen; el aviso no incluye RUT | Prueba real CA-12/13 (docs/evidencia/e2e/manual-receta); test-despacho 6d | 2 | 5 | 10 Alto | Matilda Vásquez (infraestructura) | Revisar los compartidos de la carpeta cada sprint; en producción, unidad compartida del Workspace municipal; borrar las recetas de prueba al cierre |
-| RS-05 | A3 | I · Divulgación | Un token, la clave JSON o la clave de cifrado se suben al repositorio público o se pegan en un chat | 3 | 5 | 15 Crítico | .gitignore (.env, secrets/); check_secrets.sh en la CI; credencial importada por CLI y nunca impresa; JSON de workflows solo con referencias id/name | CI «Check secrets»; test-workflows-n8n 9a–9c | 1 | 5 | 5 Medio | Matilda Vásquez | Si se filtra: /revoke en BotFather y borrar la clave de la cuenta de servicio (guía, sección 15) |
+| RS-05 | A3 | I · Divulgación | Un token, la clave JSON o la clave de cifrado se suben al repositorio público o se pegan en un chat | 3 | 5 | 15 Crítico | .gitignore (.env, secrets/); check_secrets.sh en la CI; credencial importada por CLI y nunca impresa; JSON de workflows solo con referencias id/name | CI «Check secrets»; test-workflows-n8n 9a–9c. **Materializado el 15-nov:** el JSON de la cuenta de servicio y el del cliente OAuth se compartieron por el chat del equipo para levantar el entorno en otro computador. No llegaron al repositorio (historial completo revisado el 27-nov, sin hallazgos) | 2 | 5 | 10 Alto | Matilda Vásquez | Rotar al cierre de la evaluación (4-dic): clave nueva de la cuenta de servicio, cliente OAuth nuevo y /revoke del token del bot (guía, sección 15). Desde ahora, las credenciales se copian solo con `scp` o un gestor de secretos, nunca por chat |
 | RS-06 | A7, A1 | I · Divulgación | El historial de ejecuciones de n8n expone RUT y direcciones a quien acceda al equipo o al editor | 3 | 3 | 9 Medio | n8n solo escucha en 127.0.0.1; editor con usuario local; poda automática a los 7 días (EXECUTIONS_DATA_MAX_AGE=168) | docker-compose.yml; doctor | 2 | 3 | 6 Medio | Matilda Vásquez | En un despliegue real: disco cifrado y ejecuciones exitosas sin datos |
 | RS-07 | A1 | I · Divulgación | Los mensajes viajan por Telegram (chats en la nube, sin cifrado de extremo a extremo) | 4 | 3 | 12 Alto | Datos mínimos (RUT y dirección solo al reservar); aviso de uso de datos en la bienvenida; prototipo con datos sintéticos | CA-09 | 3 | 3 | 9 Medio | Juan Pablo Salum (PO) | Riesgo aceptado para el prototipo; reevaluar con el canal oficial (WhatsApp Business) y un convenio con Cormup |
 | RS-08 | A1 | I · Divulgación | El texto de un mensaje ambiguo se envía a un LLM de terceros (NVIDIA NIM o Gemini) | 2 | 3 | 6 Medio | NVIDIA NIM/Gemini son opcionales (sin clave no se usan); solo mensajes ambiguos; solo devuelve una etiqueta; la clave va en un encabezado Authorization | test-router 7a–7j | 1 | 3 | 3 Bajo | Julián Epple | Mantener desactivado en la demo con la Municipalidad salvo autorización |
@@ -45,11 +45,15 @@ Marco legal: **Ley 19.628** sobre protección de la vida privada (vigente) y **L
 | Nivel | Inherente | Residual |
 |---|---|---|
 | Crítico | 6 | 0 |
-| Alto | 6 | 3 |
-| Medio | 6 | 9 |
+| Alto | 6 | 4 |
+| Medio | 6 | 8 |
 | Bajo | 0 | 6 |
 
-Riesgos residuales que siguen en nivel **Alto** o **Crítico** (se priorizan en el Sprint 3):
+Actualización del 27-nov-2026 (Sprint 3): RS-05 sube de Medio a Alto porque se materializó (credenciales compartidas por el chat del equipo). RS-08 se actualizó en el PR #32: el LLM principal es NVIDIA NIM y Gemini queda como alternativa.
+
+Riesgos residuales que siguen en nivel **Alto** o **Crítico**:
+
+- **RS-05** (10 Alto): Un token o una clave JSON circula fuera de `secrets/`. Plan: rotar todas las credenciales al cierre de la evaluación (4-dic) y no volver a pasarlas por chat
 
 - **RS-04** (10 Alto): Se filtra la foto de una receta (enlace reenviado o carpeta con permisos amplios). Plan: Revisar los compartidos de la carpeta cada sprint; en producción, unidad compartida del Workspace municipal; borrar las recetas de prueba al cierre
 - **RS-09** (10 Alto): Dos reservas simultáneas leen el mismo stock y se sobrevende (actualización perdida). Plan: US-13 con 20 reservas simultáneas en el Sprint 3

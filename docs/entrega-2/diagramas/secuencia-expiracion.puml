@@ -20,7 +20,7 @@ alt hay vencidos
   EX -> S : inventario: stock_reservado − cantidad\n(agregado por medicamento, nunca negativo)
   EX -> S : bitacora EXPIRACION (delta negativo,\nactor sistema:cron)
   EX -> TG : aviso a cada vecino (chat de ordenes.telefono)
-  TG -> Vecino : «Tu pedido #FAR-… fue cancelado por falta de receta\ndespués de 12 horas. Liberamos … unidades …»
+  TG -> Vecino : «Su pedido #FAR-… fue cancelado por falta de receta\ndespués de 12 horas. Liberamos … unidades …»
 else ninguno
   EX -> EX : termina sin escribir
 end
