@@ -11,5 +11,6 @@ Documentos del cierre del semestre (Sprint 3). El informe final enlaza aquí par
 | [Métricas del proyecto](metricas-proyecto.md) | Velocidad, actividad del repositorio, CI, pruebas y defectos |
 | [Ambiente preproductivo](despliegue-preproductivo.md) | Cómo dejar el bot encendido para que otras personas lo prueben |
 | [Guía de continuidad](guia-continuidad.md) | Cómo instalar, probar, mantener y seguir desarrollando el proyecto |
+| [Guion del video de la v0.1](guion-video-v0.1.md) | Qué mostrar en el video de 5 minutos, con los mensajes exactos y quién habla |
 
 Documentos de sprints anteriores que siguen vigentes: [plan de pruebas de aceptación](../plan-pruebas-aceptacion.md), [guía de instalación local](../guia-instalacion-local.md), [registro de decisiones](../entrega-2/decisiones-diseno.md), [estrategia de pruebas](../entrega-2/estrategia-pruebas.md) y [matriz de riesgos](../entrega-2/matriz-riesgos-seguridad.md).
