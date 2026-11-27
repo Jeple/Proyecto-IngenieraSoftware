@@ -4,8 +4,11 @@
  *
  * Extracts the named functions from find_expired's jsCode inside
  * workflows/US-10-cron-expiracion.json (the `typeof $ !== 'undefined'` guard
- * keeps the n8n data assembly inert outside the editor) and runs 10
- * behavioral assertions. Zero dependencies, Node >= 18, exit 1 on failure.
+ * keeps the n8n data assembly inert outside the editor) and runs behavioral
+ * assertions on them. Since Sprint 3 it also executes the four mapping nodes
+ * (expand_orders, expand_inventory, emit_bitacora, emit_notifications) and the
+ * find_expired data assembly with a simulated `$`, so every Code node of US-10
+ * is exercised (metric Q15). Zero dependencies, Node >= 18, exit 1 on failure.
  *
  * Fixture = EXAMPLE rows parsed from scripts/setup-sheets.gs + synthetic orders.
  */
@@ -275,6 +278,136 @@ function check(label, condition, detail) {
     '12. bitacora carries audit fields (PENDIENTE_RECETA -> CANCELADO_EXPIRADO, sistema:cron)',
     row.estado_anterior === 'PENDIENTE_RECETA' && row.estado_nuevo === 'CANCELADO_EXPIRADO' && row.actor === 'sistema:cron',
     JSON.stringify(row)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3b. Mapping nodes (Sprint 3, Q15): run each Code node's jsCode with a
+//     simulated `$` that returns the rows of the named upstream node.
+// ---------------------------------------------------------------------------
+function codeOf(name) {
+  const node = workflow.nodes.find((n) => n.name === name);
+  if (!node) failHard(`${name} node not found in workflow`);
+  return node.parameters.jsCode;
+}
+
+function runCodeNode(name, sources) {
+  const $ = (nodeName) => {
+    const rows = sources[nodeName] || [];
+    return { all: () => rows.map((json) => ({ json })), item: { json: rows[0] || {} } };
+  };
+  return new Function('$', codeOf(name))($); // eslint-disable-line no-new-func
+}
+
+const MAPPING_NODES = ['expand_orders', 'expand_inventory', 'emit_bitacora', 'emit_notifications'];
+
+// 13. expand_orders: every expired order becomes CANCELADO_EXPIRADO with an
+//     empty fecha_expiracion; the other columns are kept and the input is not mutated.
+{
+  const expired = [
+    makeOrder({ codigo_far: 'FAR-0013a', cantidad: 2 }),
+    makeOrder({ codigo_far: 'FAR-0013b', medicamento_id: 'MED-0002', cantidad: 1 }),
+  ];
+  const snapshot = JSON.stringify(expired);
+  const out = runCodeNode('expand_orders', { find_expired: [{ expired }] });
+  check(
+    '13. expand_orders marks each expired order CANCELADO_EXPIRADO and clears fecha_expiracion',
+    out.length === 2 &&
+      out.every((it) => it.json.estado === 'CANCELADO_EXPIRADO' && it.json.fecha_expiracion === '') &&
+      out[0].json.codigo_far === 'FAR-0013a' &&
+      out[1].json.medicamento_id === 'MED-0002' &&
+      out[1].json.cantidad === 1 &&
+      JSON.stringify(expired) === snapshot,
+    JSON.stringify(out)
+  );
+}
+
+// 14. expand_inventory: one item per aggregated inventory update, unchanged.
+{
+  const { plan } = planFor([
+    makeOrder({ codigo_far: 'FAR-0014a', medicamento_id: 'MED-0002', cantidad: 1 }),
+    makeOrder({ codigo_far: 'FAR-0014b', medicamento_id: 'MED-0003', cantidad: 2 }),
+  ]);
+  const out = runCodeNode('expand_inventory', { find_expired: [{ inventoryUpdates: plan.inventoryUpdates }] });
+  check(
+    '14. expand_inventory emits one item per inventory update, unchanged',
+    out.length === 2 &&
+      out.every((it, i) => JSON.stringify(it.json) === JSON.stringify(plan.inventoryUpdates[i])),
+    JSON.stringify(out)
+  );
+}
+
+// 15. emit_bitacora: one audit row per expired order, unchanged.
+{
+  const { plan } = planFor([
+    makeOrder({ codigo_far: 'FAR-0015a', medicamento_id: 'MED-0002', cantidad: 1 }),
+    makeOrder({ codigo_far: 'FAR-0015b', medicamento_id: 'MED-0002', cantidad: 2 }),
+  ]);
+  const out = runCodeNode('emit_bitacora', { find_expired: [{ bitacoraRows: plan.bitacoraRows }] });
+  check(
+    '15. emit_bitacora emits one audit row per expired order (EXPIRACION, sistema:cron)',
+    out.length === 2 &&
+      out.every((it, i) => JSON.stringify(it.json) === JSON.stringify(plan.bitacoraRows[i])) &&
+      out.every((it) => it.json.accion === 'EXPIRACION' && it.json.actor === 'sistema:cron'),
+    JSON.stringify(out)
+  );
+}
+
+// 16. emit_notifications: the Telegram payload only carries chat_id and message,
+//     even if the upstream entry had more fields (no RUT or address leaves n8n).
+{
+  const { plan } = planFor([makeOrder({ codigo_far: 'FAR-0016', telefono: '-1005550016' })]);
+  const withExtra = plan.notifications.map((n) => Object.assign({ rut: '11111111-1', direccion: 'Pasaje Ficticio 123' }, n));
+  const out = runCodeNode('emit_notifications', { find_expired: [{ notifications: withExtra }] });
+  check(
+    '16. emit_notifications sends only chat_id and message (no RUT or address)',
+    out.length === 1 &&
+      Object.keys(out[0].json).sort().join(',') === 'chat_id,message' &&
+      out[0].json.chat_id === '-1005550016' &&
+      out[0].json.message.includes('#FAR-0016'),
+    JSON.stringify(out)
+  );
+}
+
+// 17. Nothing expired: the four nodes emit no items, so n8n writes nothing and
+//     sends no message (also when find_expired omits the arrays).
+{
+  const emptyPlan = { count: 0, expired: [], inventoryUpdates: [], bitacoraRows: [], notifications: [] };
+  const counts = MAPPING_NODES.map((name) => [
+    runCodeNode(name, { find_expired: [emptyPlan] }).length,
+    runCodeNode(name, { find_expired: [{}] }).length,
+  ]);
+  check(
+    '17. with nothing expired the four mapping nodes emit no items',
+    counts.every(([a, b]) => a === 0 && b === 0),
+    JSON.stringify(counts)
+  );
+}
+
+// 18. Full chain with the real find_expired data assembly: two expired orders,
+//     one still in time and one EN_PREPARACION (D-01) -> the four nodes stay consistent.
+{
+  const ordenes = [
+    makeOrder({ codigo_far: 'FAR-0018a', medicamento_id: 'MED-0001', cantidad: 1, telefono: '-1005550018', fecha_expiracion: '2020-01-01T00:00:00.000Z' }),
+    makeOrder({ codigo_far: 'FAR-0018b', medicamento_id: 'MED-0002', cantidad: 2, telefono: '-1005550019', fecha_expiracion: '2020-01-01T00:00:00.000Z' }),
+    makeOrder({ codigo_far: 'FAR-0018c', fecha_expiracion: '2099-01-01T00:00:00.000Z' }),
+    makeOrder({ codigo_far: 'FAR-0018d', estado: 'EN_PREPARACION', fecha_expiracion: '2020-01-01T00:00:00.000Z' }),
+  ];
+  const found = runCodeNode('find_expired', { read_ordenes: ordenes, read_inventario: INVENTORY, read_catalogo: CATALOG });
+  const source = { find_expired: [found[0].json] };
+  const [orders, inventory, bitacora, notifications] = MAPPING_NODES.map((name) => runCodeNode(name, source));
+  const codes = orders.map((it) => it.json.codigo_far).sort().join(',');
+  const chats = notifications.map((it) => it.json.chat_id).sort().join(',');
+  check(
+    '18. full chain: find_expired -> mapping nodes (2 orders, 2 inventory updates, 2 audit rows, 2 messages)',
+    found.length === 1 &&
+      found[0].json.count === 2 &&
+      codes === 'FAR-0018a,FAR-0018b' &&
+      orders.every((it) => it.json.estado === 'CANCELADO_EXPIRADO') &&
+      inventory.length === 2 &&
+      bitacora.length === 2 &&
+      chats === '-1005550018,-1005550019',
+    JSON.stringify({ count: found[0] && found[0].json.count, codes, inventory: inventory.length, bitacora: bitacora.length, chats })
   );
 }
 
