@@ -74,6 +74,11 @@ check('2l /start -> bienvenida', cls('/start').motivo === 'bienvenida');
 check('2m "buenas tardes!" -> bienvenida', cls('buenas tardes!').motivo === 'bienvenida');
 check('2n reservar ... -> reserva', cls('reservar neurogab 75 x1 rut 11.111.111-1, Av. Grecia 8735, Peñalolén Alto').intent === 'reserva');
 check('2o "hola, quiero reservar" -> reserva', cls('hola, quiero reservar losarmed 50 x2 rut 11.111.111-1, Calle 1, San Luis').intent === 'reserva' && cls('quiero dos somnia').intent === 'reserva' && cls('necesito 3 cajas de somnia').intent === 'reserva' && cls('quiero saber si hay 2 cajas de somnia').intent === 'consulta');
+check('2o2 la dosis no es una cantidad (D-21): consultas con "quiero/necesito" siguen siendo consultas',
+  cls('necesito neurogab 75 por favor').intent === 'consulta' && cls('necesito neurogab 75 por favor').texto_limpio === 'neurogab 75' &&
+  cls('quiero losartan 50').intent === 'consulta' && cls('necesito pregabalina 150 mg').intent === 'consulta' &&
+  cls('quiero 2 losartan 50').intent === 'reserva' && cls('necesito losartan 50 x2').intent === 'reserva' &&
+  cls('dame dos cajas de somnia').intent === 'reserva');
 check('2p "el estado de mi reserva FAR-0002" NO es reserva', cls('el estado de mi reserva FAR-0002').intent === 'estado');
 check('2q código FAR -> estado', cls('estado #FAR-0002').intent === 'estado');
 check('2r RUT -> estado', cls('mi rut es 11.111.111-1').intent === 'estado');
