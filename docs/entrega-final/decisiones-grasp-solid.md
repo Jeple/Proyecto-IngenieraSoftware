@@ -20,7 +20,7 @@ El detalle técnico de todas las decisiones está en el [registro de decisiones 
 
 **Dónde se ve en el código.**
 - Flujo [`workflows/US-17-router-telegram.json`](../../workflows/US-17-router-telegram.json): el nodo `clasificar` decide la intención, el nodo `derivar` elige el camino y los nodos `ir_consulta`, `ir_reserva`, `ir_estado`, `ir_receta`, `ir_aprobacion`, `ir_despacho` e `ir_expiracion` llaman al subflujo que corresponde.
-- Pruebas: [`scripts/test-router.mjs`](../../scripts/test-router.mjs) (70 pruebas, incluidas las de contrato con los flujos que reciben el mensaje).
+- Pruebas: [`scripts/test-router.mjs`](../../scripts/test-router.mjs) (71 pruebas, incluidas las de contrato con los flujos que reciben el mensaje).
 
 **Qué ganamos y qué costó.**
 - Una intención nueva se agrega en el router y en el flujo que la atiende, sin tocar los demás. Así se sumaron el comando del personal «revisar vencidos» (router y US-10) y las reservas en lenguaje natural, como «quiero dos somnia» (router y US-05).
@@ -45,7 +45,7 @@ El detalle técnico de todas las decisiones está en el [registro de decisiones 
 
 **Por qué.**
 - Un cambio queda acotado a un flujo. En el Sprint 3 corregimos los mensajes de estado del pedido (defectos D-19 y D-20) tocando solo US-06, sin riesgo para la reserva ni para las recetas.
-- Cada flujo se prueba por separado: hoy son 421 pruebas automáticas en 14 grupos, todas en verde.
+- Cada flujo se prueba por separado: hoy son 422 pruebas automáticas en 14 grupos, todas en verde.
 - Si un flujo falla, el resto sigue funcionando y la alerta indica cuál fue.
 
 **Qué costó.**

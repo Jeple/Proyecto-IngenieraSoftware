@@ -11,7 +11,7 @@ Solo cuentan los puntos de historia (SP) de historias terminadas según la defin
 | Sprint 0 | 28-ago a 4-sep | 11 SP | 5 SP | Solo el Inception. El modelo de datos y n8n se cerraron recién en el Sprint 1 |
 | Sprint 1 | 5-sep a 16-oct | 15 SP | 6 SP | El código de las historias del sprint existía, pero quedó en un PR sin integrar ni probar de punta a punta |
 | Sprint 2 | 17-oct a 15-nov | Alcance firmado (41 SP) | 41 SP | Todo el alcance firmado quedó integrado en `main` el 15-nov, con la prueba de punta a punta del 9-nov aprobada. El tablero no se actualizó |
-| Sprint 3 | 16-nov a 4-dic | Por completar al cierre | Por completar | |
+| Sprint 3 | 16-nov a 4-dic | 14 SP: US-13 (3), US-14 (3), US-15 (5) y T-02 (3) | Se cuenta el 4-dic | Al 27-nov ninguna cumple la DoD: US-13 espera la carga de 20 reservas, US-14 la revisión de un químico farmacéutico, T-02 el gate en la CI y US-15 es la demo del 4-dic |
 
 La velocidad no fue estable: el trabajo se hizo en dos picos (15 y 16 de octubre, y del 9 al 15 de noviembre) y quedó detenido entre ambos.
 
@@ -32,7 +32,7 @@ La velocidad no fue estable: el trabajo se hizo en dos picos (15 y 16 de octubre
 
 | Indicador | Valor |
 |---|---|
-| Ejecuciones de GitHub Actions | 38: 36 exitosas, 2 canceladas y ninguna fallida |
+| Ejecuciones de GitHub Actions | 38 hasta la Entrega 2: 36 exitosas, 2 canceladas y ninguna fallida. La #39, sobre la rama `sprint-3/entrega-final`, también pasó (27-nov) |
 | Duración | 1,1 minutos en promedio; la más larga, 3,7 minutos |
 | Jobs | `validate-json` (escáner de secretos y pruebas) e `integracion-n8n` (n8n real con un Telegram simulado) |
 
@@ -61,4 +61,16 @@ El repositorio no muestra todo el trabajo del equipo: el Inception, las presenta
 
 ## 6. Cierre del Sprint 3
 
-Se completa al integrar el Sprint 3: velocidad, commits, PR con revisión, resultado de la carga con 20 reservas y latencia medida en el ambiente preproductivo.
+Datos al 27-nov, antes de integrar la rama `sprint-3/entrega-final`:
+
+| Indicador | Valor al 27-nov | Qué falta |
+|---|---|---|
+| Commits del Sprint 3 | 6 de Álvaro Astudillo en la rama de cierre, más los del cierre del informe | Contarlos al fusionar la rama en `main` |
+| Pruebas automáticas | 422/422 en 14 suites ([resumen](../evidencia/pruebas-unitarias/2026-11-27-07-34-resumen.md)) | — |
+| Cobertura de nodos Code | 23/23 (`node scripts/medir-cobertura-nodos.mjs`) | — |
+| Exactitud de la búsqueda | 50/50 con el router (`node scripts/medir-busqueda.mjs`) | — |
+| Defectos del Sprint 3 | 3 (D-19 a D-21), todos corregidos con prueba de regresión | — |
+| PR con aprobación formal | 0 hasta la Entrega 2 | Que Julián apruebe el PR de la v0.1 en GitHub (*Review → Approve*) antes de fusionarlo |
+| Carga de 20 reservas (US-13) | Sin medir | `node scripts/local/prueba-concurrencia.mjs --n 20 --stock 10` en el ambiente preproductivo |
+| Latencia en el ambiente preproductivo | Sin medir | `node scripts/local/medir-latencia.mjs --n 20` |
+| Velocidad del Sprint 3 | 14 SP comprometidos | Contar los SP en Done el 4-dic |

@@ -2,7 +2,7 @@
 
 Seguimos priorizando las mismas tres características de la Entrega 2, porque son las que más pueden dañar a un vecino si fallan: **adecuación funcional**, **seguridad** y **eficiencia de desempeño**. La mantenibilidad se mide como apoyo. Las fórmulas, umbrales y herramientas de cada métrica están en [`calidad-iso25010.md`](../entrega-2/calidad-iso25010.md).
 
-Cada tabla muestra el valor de la Entrega 2 (9 de noviembre), el valor de la v0.1 y qué falta para la meta.
+Cada tabla muestra el valor de la Entrega 2 (9 de noviembre), el valor de la v0.1 y qué falta para la meta. Cada brecha de la columna «Qué falta» está registrada como issue con la etiqueta [`v0.1-pendiente`](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues?q=label%3Av0.1-pendiente); las de seguridad llevan además la etiqueta [`owasp`](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues?q=label%3Aowasp). La carga de 20 reservas es el issue [#15](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues/15) y la revisión clínica de los mensajes, el [#16](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues/16).
 
 ## 1. Adecuación funcional: no inventar, no sobrevender
 

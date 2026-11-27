@@ -7,7 +7,7 @@ Para el equipo que reciba este proyecto (otro curso, la Municipalidad o Transfor
 - **Versión:** v0.1.0, prototipo funcional con datos sintéticos ([CHANGELOG](../../CHANGELOG.md)).
 - **Qué hace:** consulta de stock y precio aunque el nombre esté mal escrito, reserva con código #FAR que aparta el stock, receta por foto con aprobación del químico farmacéutico, liberación de reservas a las 12 horas, estado del pedido solo para quien lo hizo y despacho marcado por el personal. Detalle para usuarios en el [manual de uso](manual-de-uso.md).
 - **Qué no hace (alcance firmado):** WhatsApp, agente de voz, app del conductor, pago en línea e integración con SAP.
-- **Calidad:** 421 pruebas automáticas en verde y CI en cada cambio. Mediciones y brechas en [calidad de la v0.1](calidad-v0.1.md).
+- **Calidad:** 422 pruebas automáticas en verde y CI en cada cambio. Mediciones y brechas en [calidad de la v0.1](calidad-v0.1.md).
 
 ## 2. Mapa del repositorio
 
@@ -32,7 +32,7 @@ Para el equipo que reciba este proyecto (otro curso, la Municipalidad o Transfor
 
 | Qué | Comando | Necesita |
 |---|---|---|
-| Pruebas automáticas (421) | `node scripts/correr-pruebas.mjs` | Solo Node |
+| Pruebas automáticas (422) | `node scripts/correr-pruebas.mjs` | Solo Node |
 | Escáner de secretos y RUT | `bash scripts/check_secrets.sh` | Bash (Git Bash en Windows) |
 | Integración con n8n real | `node scripts/local/prueba-integracion.mjs` | Docker |
 | Aceptación de punta a punta | `node scripts/local/e2e.mjs` | Entorno levantado con cuentas propias |
@@ -84,4 +84,4 @@ El plan de aceptación con sus 21 casos está en [`plan-pruebas-aceptacion.md`](
 
 ## 7. Pendientes
 
-Los pendientes priorizados están en los [issues abiertos](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues) y en el [tablero del proyecto](https://github.com/users/Jeple/projects/6). Las decisiones vigentes y sus razones están en el [registro de decisiones](../entrega-2/decisiones-diseno.md).
+Los pendientes priorizados están en los [issues abiertos](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues) y en el [tablero del proyecto](https://github.com/users/Jeple/projects/6). Los conocidos al cerrar la v0.1 llevan la etiqueta [`v0.1-pendiente`](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues?q=label%3Av0.1-pendiente), y las pruebas de seguridad pendientes, además, la etiqueta [`owasp`](https://github.com/Jeple/Proyecto-IngenieraSoftware/issues?q=label%3Aowasp). Las decisiones vigentes y sus razones están en el [registro de decisiones](../entrega-2/decisiones-diseno.md).
