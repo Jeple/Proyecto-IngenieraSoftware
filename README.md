@@ -2,11 +2,11 @@
 
 Asistente de chat para la Farmacia Comunitaria de la Municipalidad de Peñalolén (Cormup): el vecino consulta stock y precio aunque escriba mal el nombre, reserva con un código `#FAR-XXXX`, envía la foto de su receta y sigue su pedido. El prototipo funciona en **Telegram** sobre n8n y Google Sheets. Repositorio del curso TICS331 — Ingeniería de Software, Semestre 2-2026, Grupo 10.
 
-> **Alcance firmado (Entrega 2):** consulta, reserva, receta con aprobación farmacéutica, liberación a las 12 h, estado del pedido, router de un solo chat y despacho marcado por el personal. **Fuera de este semestre:** agente de voz, app del conductor con ETA y canal WhatsApp (adaptador futuro). Detalle en `docs/entrega-2/backlog-actualizado.md`.
+> **Versión v0.1 (cierre del semestre):** consulta, reserva, receta con aprobación farmacéutica, liberación a las 12 h, estado del pedido, router de un solo chat y despacho marcado por el personal, tal como se firmó con la Municipalidad. **Fuera de este semestre:** agente de voz, app del conductor con ETA y canal WhatsApp (adaptador futuro). Detalle en `docs/entrega-2/backlog-actualizado.md`.
 
-**Empezar aquí:** [guía de instalación local](docs/guia-instalacion-local.md) · [documentación de la Entrega 2](docs/entrega-2/) · [checklist de la Entrega 2](docs/entrega-2/checklist-entrega-2.md) · [plan de aceptación](docs/plan-pruebas-aceptacion.md) · [CHANGELOG](CHANGELOG.md)
+**Empezar aquí:** [entrega final (v0.1)](docs/entrega-final/) · [manual de uso](docs/entrega-final/manual-de-uso.md) · [guía de continuidad](docs/entrega-final/guia-continuidad.md) · [guía de instalación local](docs/guia-instalacion-local.md) · [plan de aceptación](docs/plan-pruebas-aceptacion.md) · [CHANGELOG](CHANGELOG.md)
 
-**Cierre de la Entrega 2:** [informe del Sprint 2](docs/informe-sprint-2.md) · [guion del video](docs/guion-video-sprint-2.md) · [runbook de cierre](docs/entrega-2/runbook-cierre-entrega-2.md) · [evidencia del tablero](docs/entrega-2/evidencia-tablero.md) · [kit de capturas de aceptación](docs/entrega-2/kit-capturas-aceptacion.md)
+**Entregas anteriores:** [documentación de la Entrega 2](docs/entrega-2/) · [informe del Sprint 2](docs/informe-sprint-2.md) · [evidencia del tablero](docs/entrega-2/evidencia-tablero.md) · [informe de Inception](docs/informe-inception.md)
 
 ## Problema
 
@@ -39,7 +39,7 @@ Nota de alcance: el prototipo se mantiene desacoplado de SAP (exclusión explíc
 ├── workflows/                      # Exportes JSON de n8n: 9 flujos del alcance + 2 diferidos
 ├── scripts/
 │   ├── local/                      # levantar, doctor, cargar-catalogo, E2E, mediciones
-│   ├── test-*.mjs                  # 14 suites (413 pruebas)
+│   ├── test-*.mjs                  # 13 suites (más la de la PWA: 422 pruebas)
 │   ├── check_secrets.sh            # Escaneo de secretos y RUT (también en la CI)
 │   └── setup-sheets.gs, generate_seed.py, build-*.mjs
 ├── data/seed/                      # Datos sintéticos (CSV)
@@ -48,11 +48,12 @@ Nota de alcance: el prototipo se mantiene desacoplado de SAP (exclusión explíc
 │   ├── plan-pruebas-aceptacion.md  # 21 casos y su resultado
 │   ├── arquitectura.md, google-sheets-schema.md, runbook-operaciones.md ...
 │   ├── entrega-2/                  # UML, decisiones de diseño, ISO 25010, pruebas, riesgos
+│   ├── entrega-final/              # v0.1: arquitectura, GRASP/SOLID, manual, calidad, continuidad
 │   └── evidencia/                  # Reportes de E2E, integración, rendimiento y pruebas
 ├── infra/n8n/                      # Variantes de despliegue (túnel con nombre)
 ├── presentacion/                   # Panel y mapa de flujos para la demo
 ├── pwa/                            # Prototipo de app del conductor (fuera del alcance firmado)
-└── .github/workflows/              # CI: validate-json e integracion-n8n
+└── .github/                        # CI (validate-json e integracion-n8n) y plantillas de issues y PR
 ```
 
 ## Requisitos previos
@@ -74,7 +75,7 @@ node scripts/local/cargar-catalogo.mjs --reiniciar                   # catálogo
 node scripts/local/doctor.mjs                                        # qué falta (sin mostrar secretos)
 ```
 
-Pruebas: `node scripts/correr-pruebas.mjs` (413 pruebas) y `node scripts/local/prueba-integracion.mjs` (n8n real con Telegram simulado, sin credenciales).
+Pruebas: `node scripts/correr-pruebas.mjs` (422 pruebas en 14 suites) y `node scripts/local/prueba-integracion.mjs` (n8n real con Telegram simulado, sin credenciales).
 
 ### Configuración manual (referencia histórica del Sprint 0)
 
